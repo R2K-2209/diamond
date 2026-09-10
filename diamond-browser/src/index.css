@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #0f172a;
+  --color-surface: #1e293b;
+  --color-primary: #3b82f6;
+}
+
+@layer base {
+  html, body {
+    @apply h-full w-full m-0 p-0 overflow-hidden bg-background text-slate-200 font-sans;
+  }
+  #root {
+    @apply h-full w-full flex flex-col;
+  }
+}
