@@ -122,18 +122,20 @@ function setupNetworkInterceptors() {
         }
 
         // Layer 3: Local safety filter check
-        const safetyCheck = checkUrlSafety(details.url);
+        let targetCheckUrl = details.url;
+        if (parsed.hostname.includes('google.') && parsed.pathname === '/url') {
+          const dest = parsed.searchParams.get('url') || parsed.searchParams.get('q');
+          if (dest) targetCheckUrl = dest;
+        }
+
+        const safetyCheck = checkUrlSafety(targetCheckUrl);
         if (safetyCheck.blocked) {
           console.warn(
-            `[DIAMOND SHIELD] Blocked: ${details.url} | Category: ${safetyCheck.category} | Layer: ${safetyCheck.layer}`
+            `[DIAMOND SHIELD] Blocked: ${targetCheckUrl} | Category: ${safetyCheck.category} | Layer: ${safetyCheck.layer}`
           );
 
-          // Notify window on any top-level navigation (main_frame or sub_frame for webviews)
-          const isNav = details.resourceType === 'main_frame' || details.resourceType === 'sub_frame' || !details.resourceType;
-          if (isNav) {
-            notifyBlocked(details.url, safetyCheck.category, safetyCheck.reason, safetyCheck.layer);
-            logSecurityAlert(details.url, safetyCheck.category || 'Restricted', safetyCheck.reason || 'Filter matched');
-          }
+          notifyBlocked(targetCheckUrl, safetyCheck.category, safetyCheck.reason, safetyCheck.layer);
+          logSecurityAlert(targetCheckUrl, safetyCheck.category || 'Restricted', safetyCheck.reason || 'Filter matched');
 
           return callback({ cancel: true });
         }
@@ -168,13 +170,30 @@ function setupNetworkInterceptors() {
 
 function setupGuestWebContentsWatcher() {
   app.on('web-contents-created', (_event, contents) => {
-    // ── Block ALL new window requests (silent popup prevention) ──
+    // ── Handle new window requests (prevent new windows, but check safety and notify/navigate) ──
     contents.setWindowOpenHandler(({ url }) => {
-      const check = checkUrlSafety(url);
+      let targetUrl = url;
+      try {
+        const parsed = new URL(url);
+        if (parsed.hostname.includes('google.') && parsed.pathname === '/url') {
+          const dest = parsed.searchParams.get('url') || parsed.searchParams.get('q');
+          if (dest) targetUrl = dest;
+        }
+      } catch {}
+
+      const check = checkUrlSafety(targetUrl);
       if (check.blocked) {
-        logSecurityAlert(url, check.category || 'Restricted', check.reason || 'Popup blocked');
+        console.warn(`[DIAMOND SHIELD] Blocked link / new window: ${targetUrl}`);
+        notifyBlocked(targetUrl, check.category, check.reason, check.layer);
+        logSecurityAlert(targetUrl, check.category || 'Restricted', check.reason || 'Popup link blocked');
+        return { action: 'deny' };
       }
-      return { action: 'deny' }; // Always deny new windows without disrupting main view
+
+      // Safe link clicked with target="_blank": load in current webview
+      if (contents.getType() === 'webview') {
+        contents.loadURL(url);
+      }
+      return { action: 'deny' };
     });
 
     if (contents.getType() === 'webview') {
@@ -333,9 +352,17 @@ function setupIPCHandlers() {
   });
 }
 
-// ─── Utility Functions ──────────────────────────────────────────
+let lastBlockedUrl = '';
+let lastBlockedTime = 0;
 
 function notifyBlocked(url: string, category?: string, reason?: string, layer?: string) {
+  const now = Date.now();
+  if (url === lastBlockedUrl && now - lastBlockedTime < 1200) {
+    return;
+  }
+  lastBlockedUrl = url;
+  lastBlockedTime = now;
+
   if (win && !win.isDestroyed()) {
     win.webContents.send('site-blocked', { url, category, reason, layer });
   }

@@ -162,7 +162,7 @@ export function matchesDomainList(hostname: string, domains: string[]): string |
       .replace(/\/.*$/, '');
     if (!domain) continue;
 
-    // Exact hostname match
+    // Exact hostname or registrable domain match
     if (cleanHost === domain || registrable === domain) {
       return domain;
     }
@@ -172,14 +172,9 @@ export function matchesDomainList(hostname: string, domains: string[]): string |
       return domain;
     }
 
-    // If input is "reddit.com" and host is "www.reddit.com"
-    if (domain.includes('.') && cleanHost.includes(domain)) {
-      return domain;
-    }
-
-    // Dotless keyword match: parent typed "reddit"
+    // Dotless keyword match: parent typed "reddit" (without .com)
     if (!domain.includes('.')) {
-      if (hostParts.includes(domain) || cleanHost.includes(domain)) {
+      if (hostParts.includes(domain)) {
         return domain;
       }
     }
@@ -229,6 +224,17 @@ export function checkUrlSafety(inputUrl: string): SafetyCheckResult {
   const hostname = parsed.hostname.toLowerCase();
   const pathname = parsed.pathname.toLowerCase();
   const search = parsed.search.toLowerCase();
+
+  // ── Unpack search engine redirects (e.g. Google /url?url=... or /url?q=...) ──
+  if (hostname.includes('google.') && pathname === '/url') {
+    const dest = parsed.searchParams.get('url') || parsed.searchParams.get('q');
+    if (dest) {
+      const destCheck = checkUrlSafety(dest);
+      if (destCheck.blocked) {
+        return destCheck;
+      }
+    }
+  }
 
   // ── 1. Cloud policy: custom allow-list (highest priority) ──
   if (policy.customAllowedDomains.length > 0) {

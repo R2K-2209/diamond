@@ -55,7 +55,12 @@ function App() {
     }
   }, []);
 
-  // ── Listen for site-blocked events from main process ──
+  const currentUrlRef = useRef(currentUrl);
+  currentUrlRef.current = currentUrl;
+  const blockedInfoRef = useRef(blockedInfo);
+  blockedInfoRef.current = blockedInfo;
+
+  // ── Listen for site-blocked events from main process (Attach once) ──
   useEffect(() => {
     const api = (window as any).electronAPI;
     if (!api) return;
@@ -70,68 +75,57 @@ function App() {
       });
     }
 
-    let cleanupBlocked: (() => void) | undefined;
-    let cleanupContent: (() => void) | undefined;
-    let cleanupNavigate: (() => void) | undefined;
+    const cleanupBlocked = api.onSiteBlocked?.((data: BlockedState) => {
+      console.log('[Diamond UI] site-blocked received:', data);
+      setBlockedInfo(data);
+      setRequestSent(false);
+      try { webviewRef.current?.stop(); } catch {}
+    });
 
-    if (api.onSiteBlocked) {
-      cleanupBlocked = api.onSiteBlocked((data: BlockedState) => {
-        setBlockedInfo(data);
-        setRequestSent(false);
-        try { webviewRef.current?.stop(); } catch {}
-      });
-    }
-
-    // Layer 4: Content flagged from DOM scanner
-    if (api.onContentFlagged) {
-      cleanupContent = api.onContentFlagged((data: BlockedState) => {
-        setBlockedInfo(data);
-        setRequestSent(false);
-        try { webviewRef.current?.stop(); } catch {}
-      });
-    }
+    const cleanupContent = api.onContentFlagged?.((data: BlockedState) => {
+      setBlockedInfo(data);
+      setRequestSent(false);
+      try { webviewRef.current?.stop(); } catch {}
+    });
 
     // Layer 2: Real-time policy sync updates from main process
-    let cleanupPolicy: (() => void) | undefined;
-    if (api.onPolicyChanged) {
-      cleanupPolicy = api.onPolicyChanged((policy: any) => {
-        updatePolicyFromIPC(policy);
-        console.log('[Diamond UI] Policy updated from IPC:', policy);
+    const cleanupPolicy = api.onPolicyChanged?.((policy: any) => {
+      updatePolicyFromIPC(policy);
+      console.log('[Diamond UI] Policy updated from IPC:', policy);
 
-        // Also update the protection status UI if it's currently showing
-        if ((window as any).electronAPI?.getProtectionStatus) {
-          (window as any).electronAPI.getProtectionStatus().then((status: ProtectionStatus) => {
-            setProtectionStatus(status);
+      // Also update the protection status UI if it's currently showing
+      if ((window as any).electronAPI?.getProtectionStatus) {
+        (window as any).electronAPI.getProtectionStatus().then((status: ProtectionStatus) => {
+          setProtectionStatus(status);
+        });
+      }
+
+      // Real-time reactive check on currently open URL
+      const activeUrl = currentUrlRef.current;
+      if (activeUrl && activeUrl !== 'https://www.google.com' && !activeUrl.includes('google.com/search')) {
+        const recheck = checkUrlSafety(activeUrl);
+        if (recheck.blocked) {
+          setBlockedInfo({
+            url: activeUrl,
+            category: recheck.category,
+            reason: recheck.reason,
+            layer: recheck.layer,
           });
+          try { webviewRef.current?.stop(); } catch {}
+        } else if (blockedInfoRef.current) {
+          // Unblocked by parent! Clear block and reload
+          setBlockedInfo(null);
+          try { webviewRef.current?.reload(); } catch {}
         }
-
-        // Real-time reactive check on currently open URL
-        if (currentUrl && currentUrl !== 'https://www.google.com' && !currentUrl.includes('google.com/search')) {
-          const recheck = checkUrlSafety(currentUrl);
-          if (recheck.blocked) {
-            setBlockedInfo({
-              url: currentUrl,
-              category: recheck.category,
-              reason: recheck.reason,
-              layer: recheck.layer,
-            });
-            try { webviewRef.current?.stop(); } catch {}
-          } else if (blockedInfo) {
-            // Unblocked by parent! Clear block and reload
-            setBlockedInfo(null);
-            try { webviewRef.current?.reload(); } catch {}
-          }
-        }
-      });
-    }
+      }
+    });
 
     return () => {
       cleanupBlocked?.();
       cleanupContent?.();
-      cleanupNavigate?.();
       cleanupPolicy?.();
     };
-  }, [currentUrl, blockedInfo]);
+  }, []);
 
   // ── Webview event listeners ──
   useEffect(() => {
@@ -232,6 +226,35 @@ function App() {
       }
     };
 
+    const handleNewWindow = (e: any) => {
+      e.preventDefault();
+      const target = e.url;
+      if (!target) return;
+      let checkedUrl = target;
+      try {
+        const p = new URL(target);
+        if (p.hostname.includes('google.') && p.pathname === '/url') {
+          const dest = p.searchParams.get('url') || p.searchParams.get('q');
+          if (dest) checkedUrl = dest;
+        }
+      } catch {}
+
+      const safety = checkUrlSafety(checkedUrl);
+      if (safety.blocked) {
+        setBlockedInfo({
+          url: checkedUrl,
+          category: safety.category,
+          reason: safety.reason,
+          layer: safety.layer,
+        });
+        setRequestSent(false);
+        (window as any).electronAPI?.logBlocked?.(checkedUrl, safety.reason, safety.category);
+      } else {
+        setCurrentUrl(target);
+        setUrlInput(target);
+      }
+    };
+
     webview.addEventListener('did-start-loading', handleDidStartLoading);
     webview.addEventListener('did-stop-loading', handleDidStopLoading);
     webview.addEventListener('will-navigate', handleWillNavigate);
@@ -239,6 +262,7 @@ function App() {
     webview.addEventListener('did-navigate-in-page', handleDidNavigate);
     webview.addEventListener('did-fail-load', handleDidFailLoad);
     webview.addEventListener('ipc-message', handleIpcMessage);
+    webview.addEventListener('new-window', handleNewWindow);
 
     return () => {
       webview.removeEventListener('did-start-loading', handleDidStartLoading);
@@ -248,6 +272,7 @@ function App() {
       webview.removeEventListener('did-navigate-in-page', handleDidNavigate);
       webview.removeEventListener('did-fail-load', handleDidFailLoad);
       webview.removeEventListener('ipc-message', handleIpcMessage);
+      webview.removeEventListener('new-window', handleNewWindow);
     };
   }, [urlInput, currentUrl]);
 
@@ -323,6 +348,12 @@ function App() {
       (window as any).electronAPI?.requestAccess?.(blockedInfo.url, blockedInfo.category);
       setRequestSent(true);
     }
+  };
+
+  const handleDismissBlocked = () => {
+    setBlockedInfo(null);
+    setRequestSent(false);
+    setUrlInput(currentUrlRef.current);
   };
 
   // ── Active layer count ──
@@ -426,75 +457,112 @@ function App() {
 
       {/* ═══ Main Content ═══ */}
       <div className="flex-1 w-full relative bg-slate-950 overflow-hidden">
-        {blockedInfo ? (
-          <div className="absolute inset-0 z-30 flex items-center justify-center p-6 bg-gradient-to-b from-slate-900 via-slate-950 to-black">
-            <div className="max-w-lg w-full bg-slate-900/90 border border-rose-500/30 rounded-2xl p-8 shadow-2xl backdrop-blur-md text-center">
-              {/* Shield Icon */}
-              <div className="mx-auto w-20 h-20 rounded-full bg-rose-500/10 border border-rose-500/25 flex items-center justify-center mb-5 shadow-lg shadow-rose-500/10">
-                <svg className="w-10 h-10 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016zM12 9v2m0 4h.01" />
+        {/* Floating Blocked Dialog Modal */}
+        {blockedInfo && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="relative w-full max-w-md bg-slate-900/95 border border-rose-500/40 rounded-2xl p-6 shadow-2xl shadow-rose-950/50 backdrop-blur-xl border-t-2 border-t-rose-500 text-slate-100">
+              {/* Close / Dismiss button (top right) */}
+              <button
+                onClick={handleDismissBlocked}
+                className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                title="Dismiss"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
+              </button>
+
+              {/* Shield Icon & Header */}
+              <div className="flex items-center gap-3.5 mb-4">
+                <div className="w-12 h-12 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center shadow-lg shadow-rose-500/10 shrink-0">
+                  <svg className="w-6 h-6 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016zM12 9v2m0 4h.01" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white leading-tight">Website Blocked</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">Diamond Shield restricted this page</p>
+                </div>
               </div>
 
-              {/* Category & Layer Badge */}
-              <div className="flex items-center justify-center gap-2 mb-3">
-                <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-950/80 text-rose-300 border border-rose-800/60 tracking-wide uppercase">
+              {/* Category & Caught-by badges */}
+              <div className="flex flex-wrap items-center gap-2 mb-3.5">
+                <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-950/90 text-rose-300 border border-rose-800/80 tracking-wide uppercase">
                   {blockedInfo.category || 'Restricted Content'}
                 </span>
                 {blockedInfo.layer && (
-                  <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-blue-300 border border-slate-700">
+                  <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800/90 text-blue-300 border border-slate-700">
                     Caught by: {LAYER_LABELS[blockedInfo.layer] || blockedInfo.layer}
                   </span>
                 )}
               </div>
 
-              <h1 className="text-xl font-bold text-white mb-1.5">Website Blocked by Diamond</h1>
-              <p className="text-xs text-slate-400 mb-5">
-                This page has been restricted to protect your browsing safety.
-              </p>
-
               {/* Block Details */}
-              <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 mb-5 text-left text-[11px] space-y-1.5">
+              <div className="bg-slate-950/80 border border-slate-800/90 rounded-xl p-3 mb-5 text-[11px] space-y-2">
                 <div>
-                  <span className="text-slate-500 font-medium">Attempted Address:</span>
-                  <div className="font-mono text-rose-300/80 truncate mt-0.5" title={blockedInfo.url}>
+                  <span className="text-slate-500 font-semibold block mb-0.5">Attempted Address:</span>
+                  <div className="font-mono text-rose-300/90 truncate bg-slate-900/80 px-2 py-1 rounded border border-slate-800/50 select-all" title={blockedInfo.url}>
                     {blockedInfo.url}
                   </div>
                 </div>
                 {blockedInfo.reason && (
                   <div>
-                    <span className="text-slate-500 font-medium">Safety Policy:</span>
-                    <div className="text-slate-300 mt-0.5">{blockedInfo.reason}</div>
+                    <span className="text-slate-500 font-semibold block mb-0.5">Safety Policy:</span>
+                    <div className="text-slate-300 leading-relaxed">{blockedInfo.reason}</div>
                   </div>
                 )}
               </div>
 
               {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-2.5 justify-center">
-                <button onClick={handleHome}
-                  className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl transition-all shadow-lg shadow-blue-600/20 text-sm active:scale-[0.98]">
-                  <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-                  Back to Safe Zone
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={handleDismissBlocked}
+                  className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-200 font-medium rounded-xl border border-slate-700 text-xs transition-all"
+                >
+                  Stay on This Page
                 </button>
-                <button onClick={handleAskParent} disabled={requestSent}
-                  className={`flex-1 inline-flex items-center justify-center px-4 py-2 font-medium rounded-xl border text-sm transition-all active:scale-[0.98] ${
+                <button
+                  onClick={handleAskParent}
+                  disabled={requestSent}
+                  className={`flex-1 inline-flex items-center justify-center px-4 py-2 font-medium rounded-xl border text-xs transition-all active:scale-[0.98] shadow-md ${
                     requestSent
-                      ? 'bg-emerald-950/60 text-emerald-300 border-emerald-700/60 cursor-default'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
-                  }`}>
+                      ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/80 cursor-default'
+                      : 'bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white border-amber-500/50 shadow-amber-600/20'
+                  }`}
+                >
                   {requestSent ? (
-                    <><svg className="w-4 h-4 mr-1.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>Request Sent!</>
+                    <>
+                      <svg className="w-3.5 h-3.5 mr-1.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Request Sent!
+                    </>
                   ) : (
-                    <><svg className="w-4 h-4 mr-1.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>Ask Parent</>
+                    <>
+                      <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                      Ask Parent
+                    </>
                   )}
+                </button>
+              </div>
+
+              {/* Home link */}
+              <div className="mt-3 text-center">
+                <button
+                  onClick={handleHome}
+                  className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2"
+                >
+                  Return to Google Safe Search
                 </button>
               </div>
             </div>
           </div>
-        ) : null}
+        )}
 
-        {/* Webview (completely hidden when blocked to ensure modal visibility) */}
-        <div style={{ display: blockedInfo ? 'none' : 'block', width: '100%', height: '100%' }}>
+        {/* Webview (stays mounted and visible in background) */}
+        <div className="w-full h-full">
           <webview
             ref={webviewRef}
             src={currentUrl}
