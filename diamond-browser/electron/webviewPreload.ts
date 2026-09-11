@@ -99,18 +99,22 @@ function checkTitleAndHeadings(): { flagged: boolean; reason: string } | null {
     }
   }
 
-  // Check h1-h3 headings
+  // Check h1-h3 headings (require multiple or high-confidence title match)
   const headings = document.querySelectorAll('h1, h2, h3');
   let flagCount = 0;
   for (const heading of headings) {
     const text = (heading.textContent || '').toLowerCase();
     for (const keyword of HIGH_CONFIDENCE_TOKENS) {
-      if (text.includes(keyword)) {
+      // Use word boundary to avoid matching inside safe words
+      const regex = new RegExp(`\\b${keyword}\\b`, 'i');
+      if (regex.test(text)) {
+        // Skip single "nsfw" tag on social/discussion sites
+        if (keyword === 'nsfw') continue;
         flagCount++;
-        if (flagCount >= 1) {
+        if (flagCount >= 2) {
           return {
             flagged: true,
-            reason: `Page heading contains explicit keyword "${keyword}".`,
+            reason: `Multiple page headings contain explicit keyword "${keyword}".`,
           };
         }
       }
@@ -125,20 +129,20 @@ function checkBodyContent(): { flagged: boolean; reason: string } | null {
   const bodyText = (document.body?.innerText || '').toLowerCase().slice(0, 5000);
   if (!bodyText || bodyText.length < 50) return null;
 
-  // Count how many distinct explicit keywords appear
+  // Count how many distinct explicit keywords appear with word boundaries
   let matchCount = 0;
   const matchedKeywords: string[] = [];
 
   for (const keyword of CONTENT_KEYWORDS) {
-    if (bodyText.includes(keyword)) {
+    const regex = new RegExp(`\\b${keyword}\\b`, 'i');
+    if (regex.test(bodyText)) {
       matchCount++;
       matchedKeywords.push(keyword);
     }
   }
 
-  // Require multiple keyword matches to reduce false positives
-  // (a medical article might mention "nude" once, but won't have 3+ adult keywords)
-  if (matchCount >= 3) {
+  // Require at least 5 distinct explicit keywords to prevent false positives on social media or forums
+  if (matchCount >= 5) {
     return {
       flagged: true,
       reason: `Page body content contains ${matchCount} explicit keywords: ${matchedKeywords.slice(0, 5).join(', ')}.`,

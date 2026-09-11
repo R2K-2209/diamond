@@ -168,20 +168,13 @@ function setupNetworkInterceptors() {
 
 function setupGuestWebContentsWatcher() {
   app.on('web-contents-created', (_event, contents) => {
-    // ── Block ALL new window requests (popup prevention) ──
+    // ── Block ALL new window requests (silent popup prevention) ──
     contents.setWindowOpenHandler(({ url }) => {
-      // Check the popup URL against safety filter
       const check = checkUrlSafety(url);
       if (check.blocked) {
-        notifyBlocked(url, check.category, check.reason, check.layer);
         logSecurityAlert(url, check.category || 'Restricted', check.reason || 'Popup blocked');
-      } else {
-        // Safe popups: navigate the existing webview to that URL instead
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('navigate-to', url);
-        }
       }
-      return { action: 'deny' }; // Always deny new windows
+      return { action: 'deny' }; // Always deny new windows without disrupting main view
     });
 
     if (contents.getType() === 'webview') {
@@ -221,13 +214,17 @@ function setupGuestWebContentsWatcher() {
         }
       });
 
-      // ── Handle load failures (DNS or network filter blockages) ──
-      contents.on('did-fail-load', (_event, errorCode, _errorDesc, validatedURL) => {
+      // ── Handle load failures (ONLY for top-level main frame, never subresources) ──
+      contents.on('did-fail-load', (_event, errorCode, _errorDesc, validatedURL, isMainFrame) => {
+        // Critical: Ignore subresources (images, analytics, tracking pixels) to prevent fake popups
+        if (!isMainFrame) return;
         if (!validatedURL || validatedURL.startsWith('chrome') || validatedURL.startsWith('devtools')) return;
+        if (errorCode === -3) return; // Ignore standard aborted navigations
+
         const check = checkUrlSafety(validatedURL);
         if (check.blocked) {
           notifyBlocked(validatedURL, check.category, check.reason, check.layer);
-        } else if ([-2, -3, -20, -102, -105].includes(errorCode)) {
+        } else if (errorCode === -105 || errorCode === -20) {
           notifyBlocked(validatedURL, 'Blocked by Shield Protection', 'Access to this domain was restricted by Diamond Shield or Cloudflare Family DNS.', 'dns');
         }
       });

@@ -183,8 +183,14 @@ function App() {
     };
 
     const handleDidFailLoad = (e: any) => {
+      // Ignore subresources (images, scripts, analytics) to prevent fake block popups
+      if (e.isMainFrame === false) return;
+
       const target = e.validatedURL || urlInput || currentUrl;
       if (!target || target.startsWith('chrome-') || target.startsWith('devtools://')) return;
+
+      // Ignore normal user-cancelled or redirected requests
+      if (e.errorCode === -3) return;
 
       const safety = checkUrlSafety(target);
       if (safety.blocked) {
@@ -199,12 +205,12 @@ function App() {
         return;
       }
 
-      // If blocked by Cloudflare Family DNS or aborted by shield filter
-      if ([-2, -3, -20, -21, -102, -105].includes(e.errorCode)) {
+      // If top-level navigation failed due to DNS filter (-105) or client block (-20)
+      if (e.errorCode === -105 || e.errorCode === -20) {
         setBlockedInfo({
           url: target,
           category: 'Blocked by Shield Protection',
-          reason: 'Access to this website was restricted by Diamond Shield protection or Cloudflare Family DNS.',
+          reason: 'Access to this website was restricted by Diamond Shield or Cloudflare Family DNS.',
           layer: 'dns',
         });
         setRequestSent(false);
@@ -487,16 +493,18 @@ function App() {
           </div>
         ) : null}
 
-        {/* Webview */}
-        <webview
-          ref={webviewRef}
-          src={currentUrl}
-          className={`w-full h-full border-none bg-white ${blockedInfo ? 'invisible pointer-events-none' : 'visible'}`}
-          // @ts-ignore
-          allowpopups="false"
-          // @ts-ignore
-          preload={`file://${(typeof __dirname !== 'undefined' ? __dirname : '').replace(/\\/g, '/')}/dist-electron/webviewPreload.js`}
-        />
+        {/* Webview (completely hidden when blocked to ensure modal visibility) */}
+        <div style={{ display: blockedInfo ? 'none' : 'block', width: '100%', height: '100%' }}>
+          <webview
+            ref={webviewRef}
+            src={currentUrl}
+            className="w-full h-full border-none bg-white"
+            // @ts-ignore
+            allowpopups="false"
+            // @ts-ignore
+            preload={`file://${(typeof __dirname !== 'undefined' ? __dirname : '').replace(/\\/g, '/')}/dist-electron/webviewPreload.js`}
+          />
+        </div>
       </div>
     </div>
   );
