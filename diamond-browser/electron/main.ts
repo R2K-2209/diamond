@@ -128,7 +128,9 @@ function setupNetworkInterceptors() {
             `[DIAMOND SHIELD] Blocked: ${details.url} | Category: ${safetyCheck.category} | Layer: ${safetyCheck.layer}`
           );
 
-          if (details.resourceType === 'main_frame') {
+          // Notify window on any top-level navigation (main_frame or sub_frame for webviews)
+          const isNav = details.resourceType === 'main_frame' || details.resourceType === 'sub_frame' || !details.resourceType;
+          if (isNav) {
             notifyBlocked(details.url, safetyCheck.category, safetyCheck.reason, safetyCheck.layer);
             logSecurityAlert(details.url, safetyCheck.category || 'Restricted', safetyCheck.reason || 'Filter matched');
           }
@@ -218,6 +220,17 @@ function setupGuestWebContentsWatcher() {
           logSecurityAlert(data.url, data.category || 'Inappropriate Content', data.reason || 'DOM content scan flagged');
         }
       });
+
+      // ── Handle load failures (DNS or network filter blockages) ──
+      contents.on('did-fail-load', (_event, errorCode, _errorDesc, validatedURL) => {
+        if (!validatedURL || validatedURL.startsWith('chrome') || validatedURL.startsWith('devtools')) return;
+        const check = checkUrlSafety(validatedURL);
+        if (check.blocked) {
+          notifyBlocked(validatedURL, check.category, check.reason, check.layer);
+        } else if ([-2, -3, -20, -102, -105].includes(errorCode)) {
+          notifyBlocked(validatedURL, 'Blocked by Shield Protection', 'Access to this domain was restricted by Diamond Shield or Cloudflare Family DNS.', 'dns');
+        }
+      });
     }
   });
 }
@@ -297,7 +310,7 @@ function setupIPCHandlers() {
 
   // Get current policy for renderer startup
   ipcMain.handle('get-current-policy', () => {
-    return getPolicy();
+    return readLocalPolicy();
   });
 
   // Protection status query from renderer

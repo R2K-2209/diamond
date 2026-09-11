@@ -97,12 +97,30 @@ function App() {
       cleanupPolicy = api.onPolicyChanged((policy: any) => {
         updatePolicyFromIPC(policy);
         console.log('[Diamond UI] Policy updated from IPC:', policy);
-        
+
         // Also update the protection status UI if it's currently showing
         if ((window as any).electronAPI?.getProtectionStatus) {
           (window as any).electronAPI.getProtectionStatus().then((status: ProtectionStatus) => {
             setProtectionStatus(status);
           });
+        }
+
+        // Real-time reactive check on currently open URL
+        if (currentUrl && currentUrl !== 'https://www.google.com' && !currentUrl.includes('google.com/search')) {
+          const recheck = checkUrlSafety(currentUrl);
+          if (recheck.blocked) {
+            setBlockedInfo({
+              url: currentUrl,
+              category: recheck.category,
+              reason: recheck.reason,
+              layer: recheck.layer,
+            });
+            try { webviewRef.current?.stop(); } catch {}
+          } else if (blockedInfo) {
+            // Unblocked by parent! Clear block and reload
+            setBlockedInfo(null);
+            try { webviewRef.current?.reload(); } catch {}
+          }
         }
       });
     }
@@ -113,7 +131,7 @@ function App() {
       cleanupNavigate?.();
       cleanupPolicy?.();
     };
-  }, []);
+  }, [currentUrl, blockedInfo]);
 
   // ── Webview event listeners ──
   useEffect(() => {
@@ -165,17 +183,31 @@ function App() {
     };
 
     const handleDidFailLoad = (e: any) => {
-      if (e.errorCode === -3 || e.errorCode === -20) {
-        const safety = checkUrlSafety(e.validatedURL || urlInput);
-        if (safety.blocked) {
-          setBlockedInfo({
-            url: e.validatedURL || urlInput,
-            category: safety.category,
-            reason: safety.reason,
-            layer: safety.layer,
-          });
-          setRequestSent(false);
-        }
+      const target = e.validatedURL || urlInput || currentUrl;
+      if (!target || target.startsWith('chrome-') || target.startsWith('devtools://')) return;
+
+      const safety = checkUrlSafety(target);
+      if (safety.blocked) {
+        setBlockedInfo({
+          url: target,
+          category: safety.category,
+          reason: safety.reason,
+          layer: safety.layer,
+        });
+        setRequestSent(false);
+        (window as any).electronAPI?.logBlocked?.(target, safety.reason, safety.category);
+        return;
+      }
+
+      // If blocked by Cloudflare Family DNS or aborted by shield filter
+      if ([-2, -3, -20, -21, -102, -105].includes(e.errorCode)) {
+        setBlockedInfo({
+          url: target,
+          category: 'Blocked by Shield Protection',
+          reason: 'Access to this website was restricted by Diamond Shield protection or Cloudflare Family DNS.',
+          layer: 'dns',
+        });
+        setRequestSent(false);
       }
     };
 
@@ -211,13 +243,21 @@ function App() {
       webview.removeEventListener('did-fail-load', handleDidFailLoad);
       webview.removeEventListener('ipc-message', handleIpcMessage);
     };
-  }, [urlInput]);
+  }, [urlInput, currentUrl]);
 
   // ── Navigation handlers ──
-  const handleGo = (e: React.FormEvent) => {
+  const handleGo = async (e: React.FormEvent) => {
     e.preventDefault();
     const rawInput = urlInput.trim();
     if (!rawInput) return;
+
+    // Refresh policy from main process to guarantee latest rules
+    if ((window as any).electronAPI?.getCurrentPolicy) {
+      try {
+        const fresh = await (window as any).electronAPI.getCurrentPolicy();
+        if (fresh) updatePolicyFromIPC(fresh);
+      } catch {}
+    }
 
     const hasProtocol = rawInput.startsWith('http://') || rawInput.startsWith('https://');
     const hasDomainPattern = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(:\d+)?(\/.*)?$/.test(rawInput);
