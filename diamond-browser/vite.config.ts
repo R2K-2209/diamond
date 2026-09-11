@@ -9,14 +9,20 @@ export default defineConfig({
     react(),
     electron([
       {
-        // Main-Process entry file of the Electron App.
+        // Main process entry
         entry: 'electron/main.ts',
       },
       {
+        // Main window preload script
         entry: 'electron/preload.ts',
         onstart(options) {
-          // Notify the Renderer-Process to reload the page when the Preload-Scripts build is complete, 
-          // instead of restarting the entire Electron App.
+          options.reload();
+        },
+      },
+      {
+        // Webview preload script (Layer 4: DOM Content Scanner)
+        entry: 'electron/webviewPreload.ts',
+        onstart(options) {
           options.reload();
         },
       },
