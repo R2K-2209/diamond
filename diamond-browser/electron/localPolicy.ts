@@ -213,3 +213,66 @@ export function recordLocalRequest(url: string, category: string) {
     console.error('[LocalPolicy] Error recording request:', e);
   }
 }
+
+// ── History & Bookmarks ──
+const BOOKMARKS_FILE = path.join(DIAMOND_DIR, 'bookmarks.json');
+
+export function getLocalHistory(): any[] {
+  try {
+    if (fs.existsSync(LOGS_FILE)) {
+      return JSON.parse(fs.readFileSync(LOGS_FILE, 'utf8'));
+    }
+  } catch {}
+  return [];
+}
+
+export function clearLocalHistory(): void {
+  try {
+    fs.writeFileSync(LOGS_FILE, JSON.stringify([], null, 2), 'utf8');
+  } catch {}
+}
+
+export function getBookmarks(): any[] {
+  try {
+    if (fs.existsSync(BOOKMARKS_FILE)) {
+      return JSON.parse(fs.readFileSync(BOOKMARKS_FILE, 'utf8'));
+    }
+  } catch {}
+  return [];
+}
+
+export function addBookmark(url: string, title: string, favicon?: string): void {
+  ensureDir();
+  try {
+    let list = getBookmarks();
+    const existingIdx = list.findIndex(b => b.url === url);
+    
+    if (existingIdx !== -1) {
+      // Update existing bookmark
+      list[existingIdx].title = title || url;
+      if (favicon) list[existingIdx].favicon = favicon;
+    } else {
+      // Add new bookmark
+      list.unshift({
+        id: 'bm_' + Date.now(),
+        url,
+        title: title || url,
+        favicon: favicon || '',
+        timestamp: new Date().toISOString()
+      });
+    }
+    fs.writeFileSync(BOOKMARKS_FILE, JSON.stringify(list, null, 2), 'utf8');
+  } catch (e) {
+    console.error('[LocalPolicy] Error adding bookmark:', e);
+  }
+}
+
+export function removeBookmark(url: string): void {
+  try {
+    let list = getBookmarks();
+    list = list.filter(b => b.url !== url);
+    fs.writeFileSync(BOOKMARKS_FILE, JSON.stringify(list, null, 2), 'utf8');
+  } catch (e) {
+    console.error('[LocalPolicy] Error removing bookmark:', e);
+  }
+}

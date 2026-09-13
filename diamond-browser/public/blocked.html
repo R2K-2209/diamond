@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Website Blocked — Diamond Shield</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: #202124;
+      color: #e8eaed;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+      user-select: none;
+    }
+    .container {
+      max-width: 580px;
+      width: 100%;
+      background: #202124;
+    }
+    .icon-container {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      background: rgba(234, 67, 53, 0.12);
+      border: 1px solid rgba(234, 67, 53, 0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+    }
+    .icon-container svg {
+      width: 36px;
+      height: 36px;
+      color: #ea4335;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 500;
+      color: #ffffff;
+      margin-bottom: 12px;
+      letter-spacing: -0.3px;
+    }
+    p.subhead {
+      font-size: 14px;
+      color: #9aa0a6;
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: #2b2c30;
+      border: 1px solid #3c4043;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 28px;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .label {
+      font-size: 12px;
+      color: #9aa0a6;
+      font-weight: 500;
+    }
+    .url-pill {
+      font-family: monospace;
+      font-size: 12px;
+      color: #f28b82;
+      background: #202124;
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid #3c4043;
+      word-break: break-all;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: rgba(234, 67, 53, 0.18);
+      color: #f28b82;
+      border: 1px solid rgba(234, 67, 53, 0.35);
+    }
+    .reason {
+      font-size: 13px;
+      color: #bdc1c6;
+      line-height: 1.5;
+      padding-top: 10px;
+      border-top: 1px solid rgba(60, 64, 67, 0.6);
+    }
+    .actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    button.btn-primary {
+      background: #1a73e8;
+      color: #ffffff;
+      border: none;
+      border-radius: 999px;
+      padding: 10px 24px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+    button.btn-primary:hover {
+      background: #1b66c9;
+    }
+    button.btn-primary:active {
+      transform: scale(0.98);
+    }
+    button.btn-secondary {
+      background: transparent;
+      color: #e8eaed;
+      border: 1px solid #5f6368;
+      border-radius: 999px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    button.btn-secondary:hover {
+      background: #303134;
+      border-color: #8ab4f8;
+    }
+    button.btn-secondary.sent {
+      background: rgba(13, 101, 45, 0.3);
+      color: #81c995;
+      border-color: rgba(52, 168, 83, 0.5);
+      cursor: default;
+    }
+    .advanced-toggle {
+      font-size: 13px;
+      color: #8ab4f8;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: none;
+      border: none;
+      padding: 4px 0;
+    }
+    .advanced-panel {
+      display: none;
+      margin-top: 12px;
+      padding: 12px 16px;
+      background: #181a1f;
+      border-radius: 8px;
+      border: 1px solid #303134;
+      font-family: monospace;
+      font-size: 11px;
+      color: #9aa0a6;
+      line-height: 1.6;
+    }
+    .advanced-panel.open {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon-container">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+    </div>
+
+    <h1>Website Blocked</h1>
+    <p class="subhead">
+      Diamond Shield has restricted access to this website according to your parent or guardian's safety rules.
+    </p>
+
+    <div class="card">
+      <div class="row">
+        <span class="label">Attempted:</span>
+        <span class="url-pill" id="blocked-url">Loading...</span>
+        <span class="badge" id="category-badge">Restricted</span>
+      </div>
+      <div class="reason" id="blocked-reason">
+        Access to this site was blocked to protect your browsing safety.
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" id="btn-back">
+        <svg style="width:16px;height:16px" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+        Back to safety
+      </button>
+      <button class="btn-secondary" id="btn-ask">
+        <svg style="width:16px;height:16px" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+        Ask parent for permission
+      </button>
+    </div>
+
+    <div>
+      <button class="advanced-toggle" id="btn-toggle-advanced">
+        Advanced <span>▾</span>
+      </button>
+      <div class="advanced-panel" id="advanced-panel">
+        <div>Error Code: <strong>DIAMOND_ERR_BLOCKED_BY_ADMINISTRATOR</strong></div>
+        <div id="adv-layer">Layer: Safety Filter</div>
+        <div id="adv-time">Timestamp: </div>
+        <div style="margin-top: 6px; color: #70757a;">
+          Diamond Shield inspected this destination against your device's parental policy before rendering content.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const url = params.get('url') || 'Unknown website';
+    const category = params.get('category') || 'Restricted Site';
+    const reason = params.get('reason') || 'Your parent has restricted access to this website.';
+    const layer = params.get('layer') || 'filter';
+
+    document.getElementById('blocked-url').textContent = url;
+    document.getElementById('category-badge').textContent = category;
+    document.getElementById('blocked-reason').textContent = reason;
+    document.getElementById('adv-layer').textContent = 'Layer: ' + layer;
+    document.getElementById('adv-time').textContent = 'Timestamp: ' + new Date().toLocaleTimeString();
+
+    document.getElementById('btn-back').addEventListener('click', () => {
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.location.href = 'https://www.google.com';
+      }
+    });
+
+    const askBtn = document.getElementById('btn-ask');
+    askBtn.addEventListener('click', () => {
+      if (window.electronAPI?.requestAccess) {
+        window.electronAPI.requestAccess(url, category);
+      }
+      askBtn.classList.add('sent');
+      askBtn.innerHTML = `
+        <svg style="width:16px;height:16px;color:#81c995" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+        Request Sent to Parent!
+      `;
+    });
+
+    const advToggle = document.getElementById('btn-toggle-advanced');
+    const advPanel = document.getElementById('advanced-panel');
+    advToggle.addEventListener('click', () => {
+      advPanel.classList.toggle('open');
+      advToggle.querySelector('span').textContent = advPanel.classList.contains('open') ? '▴' : '▾';
+    });
+  </script>
+</body>
+</html>

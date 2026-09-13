@@ -21,6 +21,11 @@ import {
   recordLocalAlert,
   recordLocalNavigation,
   recordLocalRequest,
+  getLocalHistory,
+  clearLocalHistory,
+  getBookmarks,
+  addBookmark,
+  removeBookmark,
 } from './localPolicy';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -55,14 +60,30 @@ const webviewPreloadPath = path.join(__dirname, 'webviewPreload.js');
 // ─── Window Creation ────────────────────────────────────────────
 
 function createWindow() {
+  const preloadPath = path.join(__dirname, 'preload.js');
+  console.log('[Diamond] __dirname =', __dirname);
+  console.log('[Diamond] Preload path =', preloadPath);
+  
+  // Verify preload file exists
+  const fs = require('fs');
+  console.log('[Diamond] Preload file exists:', fs.existsSync(preloadPath));
+  
   win = new BrowserWindow({
     width: 1280,
     height: 820,
     title: 'Diamond — Child-Safe Web Browser',
     icon: path.join(process.env.VITE_PUBLIC!, 'favicon.svg'),
+    autoHideMenuBar: true,
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: '#101010',
+      symbolColor: '#9ca3af',
+      height: 38,
+    },
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: preloadPath,
       webviewTag: true,
+      sandbox: false,
     },
   });
 
@@ -71,11 +92,53 @@ function createWindow() {
   setupDownloadManager();         // Executable blocking
   setupGuestWebContentsWatcher(); // Layer 3 + 4 for webview
   setupIPCHandlers();             // IPC for renderer
+  console.log('[Diamond] All IPC handlers registered successfully.');
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
   } else {
     win.loadFile(path.join(RENDERER_DIST, 'index.html'));
+  }
+
+  // Debug: verify preload is working
+  win.webContents.on('did-finish-load', () => {
+    win!.webContents.executeJavaScript(`
+      console.log('[Diamond Renderer] electronAPI available:', !!window.electronAPI);
+      console.log('[Diamond Renderer] addBookmark fn:', typeof window.electronAPI?.addBookmark);
+      console.log('[Diamond Renderer] getBookmarks fn:', typeof window.electronAPI?.getBookmarks);
+    `).catch(() => {});
+  });
+}
+
+let _lastNotifyUrl = '';
+let _lastNotifyTime = 0;
+
+export function notifySiteBlocked(url: string, category: string, reason: string, layer: string) {
+  // Dedup: skip if same URL was notified within 2 seconds
+  const now = Date.now();
+  if (url === _lastNotifyUrl && now - _lastNotifyTime < 2000) return;
+  _lastNotifyUrl = url;
+  _lastNotifyTime = now;
+
+  logSecurityAlert(url, category, reason);
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('site-blocked', { url, category, reason, layer });
+  }
+}
+
+export function getBlockedPageUrl(targetUrl: string, category?: string, reason?: string, layer?: string): string {
+  const params = new URLSearchParams({
+    url: targetUrl,
+    category: category || 'Restricted Site',
+    reason: reason || 'Access to this website was restricted by Diamond Shield.',
+    layer: layer || 'filter',
+  });
+
+  if (VITE_DEV_SERVER_URL) {
+    return `${VITE_DEV_SERVER_URL}blocked.html?${params.toString()}`;
+  } else {
+    const filePath = path.join(RENDERER_DIST, 'blocked.html').replace(/\\/g, '/');
+    return `file://${filePath}?${params.toString()}`;
   }
 }
 
@@ -89,10 +152,11 @@ function setupNetworkInterceptors() {
       try {
         const parsed = new URL(details.url);
 
-        // Skip internal Electron/Vite dev server URLs
+        // Skip internal Electron/Vite dev server URLs and blocked redirect page
         if (
           parsed.hostname === 'localhost' ||
           parsed.hostname === '127.0.0.1' ||
+          parsed.pathname.endsWith('blocked.html') ||
           parsed.protocol === 'devtools:' ||
           parsed.protocol === 'chrome-extension:'
         ) {
@@ -130,12 +194,18 @@ function setupNetworkInterceptors() {
 
         const safetyCheck = checkUrlSafety(targetCheckUrl);
         if (safetyCheck.blocked) {
-          console.warn(
-            `[DIAMOND SHIELD] Blocked: ${targetCheckUrl} | Category: ${safetyCheck.category} | Layer: ${safetyCheck.layer}`
-          );
-
-          notifyBlocked(targetCheckUrl, safetyCheck.category, safetyCheck.reason, safetyCheck.layer);
-          logSecurityAlert(targetCheckUrl, safetyCheck.category || 'Restricted', safetyCheck.reason || 'Filter matched');
+          // Only notify renderer and log for main_frame requests (not sub-resources)
+          if (details.resourceType === 'mainFrame') {
+            console.warn(
+              `[DIAMOND SHIELD] Blocked: ${targetCheckUrl} | Category: ${safetyCheck.category} | Layer: ${safetyCheck.layer}`
+            );
+            notifySiteBlocked(
+              targetCheckUrl,
+              safetyCheck.category || 'Restricted',
+              safetyCheck.reason || 'Filter matched',
+              safetyCheck.layer || 'filter'
+            );
+          }
 
           return callback({ cancel: true });
         }
@@ -170,11 +240,12 @@ function setupNetworkInterceptors() {
 
 function setupGuestWebContentsWatcher() {
   app.on('web-contents-created', (_event, contents) => {
-    // ── Handle new window requests (prevent new windows, but check safety and notify/navigate) ──
+    // ── Handle new window requests (prevent new windows, but check safety and redirect/navigate) ──
     contents.setWindowOpenHandler(({ url }) => {
       let targetUrl = url;
       try {
         const parsed = new URL(url);
+        if (parsed.pathname.endsWith('blocked.html')) return { action: 'deny' };
         if (parsed.hostname.includes('google.') && parsed.pathname === '/url') {
           const dest = parsed.searchParams.get('url') || parsed.searchParams.get('q');
           if (dest) targetUrl = dest;
@@ -184,8 +255,17 @@ function setupGuestWebContentsWatcher() {
       const check = checkUrlSafety(targetUrl);
       if (check.blocked) {
         console.warn(`[DIAMOND SHIELD] Blocked link / new window: ${targetUrl}`);
-        notifyBlocked(targetUrl, check.category, check.reason, check.layer);
-        logSecurityAlert(targetUrl, check.category || 'Restricted', check.reason || 'Popup link blocked');
+        notifySiteBlocked(
+          targetUrl,
+          check.category || 'Restricted',
+          check.reason || 'Blocked link attempt',
+          check.layer || 'filter'
+        );
+        // Load blocked page directly INTO the webview
+        if (contents.getType() === 'webview') {
+          const blockedUrl = getBlockedPageUrl(targetUrl, check.category, check.reason, check.layer);
+          setImmediate(() => contents.loadURL(blockedUrl));
+        }
         return { action: 'deny' };
       }
 
@@ -205,22 +285,52 @@ function setupGuestWebContentsWatcher() {
 
       // ── Layer 3: Navigation safety check ──
       contents.on('will-navigate', (event, navigationUrl) => {
-        const check = checkUrlSafety(navigationUrl);
+        let targetUrl = navigationUrl;
+        try {
+          const parsed = new URL(navigationUrl);
+          if (parsed.pathname.endsWith('blocked.html')) return;
+          if (parsed.hostname.includes('google.') && parsed.pathname === '/url') {
+            const dest = parsed.searchParams.get('url') || parsed.searchParams.get('q');
+            if (dest) targetUrl = dest;
+          }
+        } catch {}
+
+        const check = checkUrlSafety(targetUrl);
         if (check.blocked) {
           event.preventDefault();
-          console.warn(`[DIAMOND SHIELD] Blocked webview navigation: ${navigationUrl}`);
-          notifyBlocked(navigationUrl, check.category, check.reason, check.layer);
-          logSecurityAlert(navigationUrl, check.category || 'Restricted', check.reason || 'Navigation blocked');
+          console.warn(`[DIAMOND SHIELD] Blocked webview navigation: ${targetUrl}`);
+          notifySiteBlocked(
+            targetUrl,
+            check.category || 'Restricted',
+            check.reason || 'Navigation blocked',
+            check.layer || 'filter'
+          );
+          // Load blocked page directly INTO the webview
+          const blockedUrl = getBlockedPageUrl(targetUrl, check.category, check.reason, check.layer);
+          setImmediate(() => contents.loadURL(blockedUrl));
         }
       });
 
       contents.on('will-redirect', (event, redirectUrl) => {
-        const check = checkUrlSafety(redirectUrl);
+        let targetUrl = redirectUrl;
+        try {
+          const parsed = new URL(redirectUrl);
+          if (parsed.pathname.endsWith('blocked.html')) return;
+        } catch {}
+
+        const check = checkUrlSafety(targetUrl);
         if (check.blocked) {
           event.preventDefault();
-          console.warn(`[DIAMOND SHIELD] Blocked webview redirect: ${redirectUrl}`);
-          notifyBlocked(redirectUrl, check.category, check.reason, check.layer);
-          logSecurityAlert(redirectUrl, check.category || 'Restricted', check.reason || 'Redirect blocked');
+          console.warn(`[DIAMOND SHIELD] Blocked webview redirect: ${targetUrl}`);
+          notifySiteBlocked(
+            targetUrl,
+            check.category || 'Restricted',
+            check.reason || 'Redirect blocked',
+            check.layer || 'filter'
+          );
+          // Load blocked page directly INTO the webview
+          const blockedUrl = getBlockedPageUrl(targetUrl, check.category, check.reason, check.layer);
+          setImmediate(() => contents.loadURL(blockedUrl));
         }
       });
 
@@ -228,23 +338,43 @@ function setupGuestWebContentsWatcher() {
       contents.on('ipc-message', (_event, channel, data) => {
         if (channel === 'content-flagged' && data) {
           console.warn(`[DIAMOND SHIELD] Content flagged by DOM scanner: ${data.url} | ${data.reason}`);
-          notifyBlocked(data.url, data.category, data.reason, 'content-scan');
-          logSecurityAlert(data.url, data.category || 'Inappropriate Content', data.reason || 'DOM content scan flagged');
+          notifySiteBlocked(
+            data.url,
+            data.category || 'Inappropriate Content',
+            data.reason || 'DOM content scan flagged',
+            'content-scan'
+          );
+          const blockedUrl = getBlockedPageUrl(data.url, data.category, data.reason, 'content-scan');
+          setImmediate(() => contents.loadURL(blockedUrl));
         }
       });
 
       // ── Handle load failures (ONLY for top-level main frame, never subresources) ──
       contents.on('did-fail-load', (_event, errorCode, _errorDesc, validatedURL, isMainFrame) => {
-        // Critical: Ignore subresources (images, analytics, tracking pixels) to prevent fake popups
         if (!isMainFrame) return;
         if (!validatedURL || validatedURL.startsWith('chrome') || validatedURL.startsWith('devtools')) return;
-        if (errorCode === -3) return; // Ignore standard aborted navigations
+        if (validatedURL.includes('blocked.html')) return;
+        if (errorCode === -3) return; // Ignore standard user-aborted navigations
 
         const check = checkUrlSafety(validatedURL);
         if (check.blocked) {
-          notifyBlocked(validatedURL, check.category, check.reason, check.layer);
+          notifySiteBlocked(
+            validatedURL,
+            check.category || 'Restricted',
+            check.reason || 'Filter matched',
+            check.layer || 'filter'
+          );
+          const blockedUrl = getBlockedPageUrl(validatedURL, check.category, check.reason, check.layer);
+          setImmediate(() => contents.loadURL(blockedUrl));
         } else if (errorCode === -105 || errorCode === -20) {
-          notifyBlocked(validatedURL, 'Blocked by Shield Protection', 'Access to this domain was restricted by Diamond Shield or Cloudflare Family DNS.', 'dns');
+          notifySiteBlocked(
+            validatedURL,
+            'Blocked by Shield Protection',
+            'Access to this domain was restricted by Diamond Shield or Cloudflare Family DNS.',
+            'dns'
+          );
+          const blockedUrl = getBlockedPageUrl(validatedURL, 'Blocked by Shield Protection', 'Access to this domain was restricted by Diamond Shield or Cloudflare Family DNS.', 'dns');
+          setImmediate(() => contents.loadURL(blockedUrl));
         }
       });
     }
@@ -259,69 +389,114 @@ const BLOCKED_EXTENSIONS = [
   '.cpl', '.hta', '.jar', '.jnlp',
 ];
 
+const activeDownloads: Record<string, any> = {};
+
 function setupDownloadManager() {
-  session.defaultSession.on('will-download', (event, item) => {
+  session.defaultSession.on('will-download', (event, item, webContents) => {
     const filename = item.getFilename().toLowerCase();
 
     const isBlocked = BLOCKED_EXTENSIONS.some(ext => filename.endsWith(ext));
     if (isBlocked) {
       event.preventDefault();
-
       dialog.showMessageBox({
         type: 'warning',
         title: '🛡️ Download Blocked by Diamond',
         message: `Download blocked: "${item.getFilename()}"\n\nExecutable and script files are blocked to protect this device.`,
         buttons: ['Understood'],
       });
-
-      logSecurityAlert(
-        item.getURL(),
-        'Malware Prevention',
-        `Blocked download of executable file: ${filename}`
-      );
+      logSecurityAlert(item.getURL(), 'Malware Prevention', `Blocked download of executable file: ${filename}`);
+      return;
     }
+
+    const downloadId = Date.now().toString();
+    const sendUpdate = (state: string) => {
+      const data = {
+        id: downloadId,
+        filename: item.getFilename(),
+        url: item.getURL(),
+        receivedBytes: item.getReceivedBytes(),
+        totalBytes: item.getTotalBytes(),
+        state: state,
+        savePath: item.getSavePath(),
+      };
+      activeDownloads[downloadId] = data;
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('download-progress', data);
+      }
+    };
+
+    sendUpdate('progressing');
+
+    item.on('updated', (event, state) => {
+      if (state === 'interrupted') sendUpdate('interrupted');
+      else if (state === 'progressing') {
+        if (item.isPaused()) sendUpdate('paused');
+        else sendUpdate('progressing');
+      }
+    });
+
+    item.once('done', (event, state) => {
+      sendUpdate(state);
+    });
   });
 }
 
 // ─── IPC Handlers ───────────────────────────────────────────────
 
 function setupIPCHandlers() {
+  console.log('[Diamond] Setting up IPC handlers...');
+  // Downloads
+  ipcMain.handle('get-downloads', () => Object.values(activeDownloads));
+
   // Normal browsing log
-  ipcMain.on('log-navigation', async (_event, url, title) => {
+  ipcMain.handle('log-navigation', async (_event, url, title) => {
     recordLocalNavigation(url, title);
-    try {
-      await addDoc(collection(db, 'logs'), {
-        url,
-        title,
-        timestamp: serverTimestamp(),
-        userId: 'test-child-user',
-        safe: true,
-      });
-    } catch {
-      // Cloud Firestore might be disabled in Firebase Console
-    }
   });
 
   // Explicit block log from renderer
-  ipcMain.on('log-blocked', async (_event, url, reason, category) => {
+  ipcMain.handle('log-blocked', async (_event, url, reason, category) => {
     await logSecurityAlert(url, category || 'Restricted', reason || 'Blocked');
   });
 
   // Child requests parent permission
-  ipcMain.on('request-access', async (_event, url, category) => {
+  ipcMain.handle('request-access', async (_event, url, category) => {
     recordLocalRequest(url, category || 'Restricted Page');
-    try {
-      await addDoc(collection(db, 'requests'), {
-        url,
-        category: category || 'Restricted Page',
-        timestamp: serverTimestamp(),
-        userId: 'test-child-user',
-        status: 'PENDING',
-      });
-      console.log(`[Diamond] Access requested for: ${url}`);
-    } catch {
-      // Cloud Firestore might be disabled in Firebase Console
-    }
+  });
+
+  // Browser Menu Controls
+  ipcMain.handle('new-window', () => {
+    createWindow();
+  });
+
+  ipcMain.handle('close-window', (e) => {
+    const window = BrowserWindow.fromWebContents(e.sender);
+    if (window) window.close();
+  });
+
+  // History
+  ipcMain.handle('get-history', () => {
+    console.log('[IPC] get-history called');
+    return getLocalHistory();
+  });
+  ipcMain.handle('clear-history', () => {
+    console.log('[IPC] clear-history called');
+    clearLocalHistory();
+  });
+
+  // Bookmarks
+  ipcMain.handle('get-bookmarks', () => {
+    console.log('[IPC] get-bookmarks called');
+    return getBookmarks();
+  });
+  ipcMain.handle('add-bookmark', (_e, url, title, favicon) => {
+    console.log('[IPC] add-bookmark called with:', url, title);
+    addBookmark(url, title, favicon);
+    return true;
+  });
+  ipcMain.handle('remove-bookmark', (_e, url) => {
+    console.log('[IPC] remove-bookmark called with:', url);
+    removeBookmark(url);
+    return true;
   });
 
   // Get current policy for renderer startup
@@ -350,6 +525,11 @@ function setupIPCHandlers() {
       },
     };
   });
+
+  // Resolve custom redirect blocked URL for renderer
+  ipcMain.handle('get-blocked-url', (_event, targetUrl, category, reason, layer) => {
+    return getBlockedPageUrl(targetUrl, category, reason, layer);
+  });
 }
 
 let lastBlockedUrl = '';
@@ -370,6 +550,7 @@ function notifyBlocked(url: string, category?: string, reason?: string, layer?: 
 
 async function logSecurityAlert(url: string, category: string, reason: string) {
   recordLocalAlert({ url, category, reason, severity: 'HIGH' });
+  /* Firestore disabled — enable when API is active
   try {
     await addDoc(collection(db, 'alerts'), {
       type: 'BLOCKED_ATTEMPT',
@@ -380,9 +561,8 @@ async function logSecurityAlert(url: string, category: string, reason: string) {
       userId: 'test-child-user',
       severity: 'HIGH',
     });
-  } catch {
-    // Cloud Firestore might be disabled in Firebase Console
-  }
+  } catch {}
+  */
 }
 
 // ─── App Lifecycle ──────────────────────────────────────────────

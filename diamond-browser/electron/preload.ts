@@ -8,16 +8,16 @@ import { contextBridge, ipcRenderer } from 'electron';
  */
 contextBridge.exposeInMainWorld('electronAPI', {
   // Navigation logging
-  logNavigation: (url: string, title: string) =>
-    ipcRenderer.send('log-navigation', url, title),
+  logNavigation: (url: string, title: string): Promise<void> =>
+    ipcRenderer.invoke('log-navigation', url, title),
 
   // Security event logging
-  logBlocked: (url: string, reason?: string, category?: string) =>
-    ipcRenderer.send('log-blocked', url, reason, category),
+  logBlocked: (url: string, reason?: string, category?: string): Promise<void> =>
+    ipcRenderer.invoke('log-blocked', url, reason, category),
 
   // Child requests parent permission
-  requestAccess: (url: string, category?: string) =>
-    ipcRenderer.send('request-access', url, category),
+  requestAccess: (url: string, category?: string): Promise<void> =>
+    ipcRenderer.invoke('request-access', url, category),
 
   // Fetch current policy state on startup
   getCurrentPolicy: () => ipcRenderer.invoke('get-current-policy'),
@@ -52,4 +52,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Request current protection status
   getProtectionStatus: (): Promise<any> =>
     ipcRenderer.invoke('get-protection-status'),
+
+  // Get custom redirect blocked URL
+  getBlockedUrl: (targetUrl: string, category?: string, reason?: string, layer?: string): Promise<string> =>
+    ipcRenderer.invoke('get-blocked-url', targetUrl, category, reason, layer),
+
+  // Browser Menu Commands
+  newWindow: (): Promise<void> => ipcRenderer.invoke('new-window'),
+  closeWindow: (): Promise<void> => ipcRenderer.invoke('close-window'),
+
+  // History
+  getHistory: (): Promise<any[]> => ipcRenderer.invoke('get-history'),
+  clearHistory: (): Promise<void> => ipcRenderer.invoke('clear-history'),
+
+  // Bookmarks
+  getBookmarks: (): Promise<any[]> => ipcRenderer.invoke('get-bookmarks'),
+  addBookmark: (url: string, title: string, favicon?: string): Promise<void> => ipcRenderer.invoke('add-bookmark', url, title, favicon || ''),
+  removeBookmark: (url: string): Promise<void> => ipcRenderer.invoke('remove-bookmark', url),
+
+  // Downloads
+  getDownloads: (): Promise<any[]> => ipcRenderer.invoke('get-downloads'),
+  onDownloadProgress: (callback: (data: any) => void) => {
+    const handler = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('download-progress', handler);
+    return () => {
+      ipcRenderer.removeListener('download-progress', handler);
+    };
+  }
 });

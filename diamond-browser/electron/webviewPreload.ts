@@ -211,3 +211,10 @@ if (document.readyState === 'loading') {
 window.addEventListener('load', () => {
   setTimeout(runContentScan, 800);
 });
+
+// Expose safe API for blocked.html to request parental access
+(window as any).electronAPI = {
+  requestAccess: (url: string, category?: string) => {
+    ipcRenderer.sendToHost('request-access', { url, category });
+  },
+};

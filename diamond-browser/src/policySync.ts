@@ -138,28 +138,40 @@ export function onPolicyChange(callback: (policy: ContentPolicy) => void): () =>
 }
 
 /**
- * Initialize real-time Firestore listener for content policies.
- * Call this once from main.ts on app startup.
+ * Initialize policy sync.
+ * Firestore is currently disabled for this project, so we use local-only mode.
+ * When Firestore is enabled in Google Cloud Console, uncomment the onSnapshot block.
  */
 export async function initPolicySync(userId: string = 'test-child-user'): Promise<void> {
-  const policyDocRef = doc(db, 'policies', userId);
+  console.log('[PolicySync] Using local-only policy mode (Firestore API not enabled).');
+  
+  // Use defaults — local policy from ~/.diamond/policy.json is the source of truth
+  currentPolicy = { ...DEFAULT_POLICY };
+  isInitialized = true;
 
-  // First, check if the document exists. If not, create it with defaults.
+  // Notify all listeners with defaults
+  for (const listener of listeners) {
+    try {
+      listener(currentPolicy);
+    } catch (err) {
+      console.error('[PolicySync] Listener error:', err);
+    }
+  }
+
+  /* 
+   * UNCOMMENT THIS when Firestore API is enabled in Google Cloud Console:
+   * https://console.developers.google.com/apis/api/firestore.googleapis.com/overview?project=browser-3ae3d
+   *
+  const policyDocRef = doc(db, 'policies', userId);
   try {
     const snapshot = await getDoc(policyDocRef);
     if (!snapshot.exists()) {
-      console.log('[PolicySync] No policy document found. Creating default policy...');
-      await setDoc(policyDocRef, {
-        ...DEFAULT_POLICY,
-        updatedAt: new Date().toISOString(),
-      });
+      await setDoc(policyDocRef, { ...DEFAULT_POLICY, updatedAt: new Date().toISOString() });
     }
   } catch (error) {
     console.warn('[PolicySync] Could not check/create policy document:', error);
-    // Continue with defaults — the listener will pick up changes when connectivity is restored
   }
 
-  // Set up real-time listener
   unsubscribe = onSnapshot(
     policyDocRef,
     (snapshot) => {
@@ -179,28 +191,20 @@ export async function initPolicySync(userId: string = 'test-child-user'): Promis
           dailyScreenTimeMinutes: data.dailyScreenTimeMinutes ?? DEFAULT_POLICY.dailyScreenTimeMinutes,
           updatedAt: data.updatedAt,
         };
-        console.log(`[PolicySync] Policy updated — mode: ${currentPolicy.mode}, blocked domains: ${currentPolicy.customBlockedDomains.length}, allowed: ${currentPolicy.customAllowedDomains.length}`);
       } else {
         currentPolicy = { ...DEFAULT_POLICY };
-        console.log('[PolicySync] Policy document deleted, reverting to defaults.');
       }
       isInitialized = true;
-
-      // Notify all listeners
       for (const listener of listeners) {
-        try {
-          listener(currentPolicy);
-        } catch (err) {
-          console.error('[PolicySync] Listener error:', err);
-        }
+        try { listener(currentPolicy); } catch (err) { console.error('[PolicySync] Listener error:', err); }
       }
     },
     (error) => {
       console.error('[PolicySync] Firestore listener error:', error);
-      // Keep using current/default policy
       isInitialized = true;
     }
   );
+  */
 }
 
 /**
