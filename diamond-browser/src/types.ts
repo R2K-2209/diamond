@@ -26,6 +26,10 @@ declare global {
       removeBookmark: (url: string) => void;
       getDownloads: () => Promise<any[]>;
       onDownloadProgress: (callback: (data: any) => void) => () => void;
+      getDownloadHistory: () => Promise<any[]>;
+      clearDownloadHistory: () => Promise<void>;
+      openDownloadFile: (savePath: string) => Promise<string>;
+      showDownloadInFolder: (savePath: string) => Promise<void>;
     };
   }
 }

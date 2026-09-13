@@ -8,7 +8,7 @@
  *   Layer 4: In-Page DOM Content Scanner (RTA tags, title analysis)
  */
 
-import { app, BrowserWindow, ipcMain, session, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, session, dialog, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db } from '../src/firebase';
@@ -26,6 +26,9 @@ import {
   getBookmarks,
   addBookmark,
   removeBookmark,
+  recordLocalDownload,
+  getLocalDownloads,
+  clearLocalDownloads,
 } from './localPolicy';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -409,6 +412,7 @@ function setupDownloadManager() {
     }
 
     const downloadId = Date.now().toString();
+    const startTime = new Date().toISOString();
     const sendUpdate = (state: string) => {
       const data = {
         id: downloadId,
@@ -418,6 +422,8 @@ function setupDownloadManager() {
         totalBytes: item.getTotalBytes(),
         state: state,
         savePath: item.getSavePath(),
+        startTime,
+        completedAt: state === 'completed' ? new Date().toISOString() : undefined,
       };
       activeDownloads[downloadId] = data;
       if (win && !win.isDestroyed()) {
@@ -437,6 +443,11 @@ function setupDownloadManager() {
 
     item.once('done', (event, state) => {
       sendUpdate(state);
+      // Persist completed/cancelled/interrupted downloads to disk
+      if (activeDownloads[downloadId]) {
+        recordLocalDownload(activeDownloads[downloadId]);
+        console.log(`[Diamond] Download ${state}: ${item.getFilename()}`);
+      }
     });
   });
 }
@@ -447,6 +458,44 @@ function setupIPCHandlers() {
   console.log('[Diamond] Setting up IPC handlers...');
   // Downloads
   ipcMain.handle('get-downloads', () => Object.values(activeDownloads));
+
+  // Download history (persistent)
+  ipcMain.handle('get-download-history', () => {
+    // Merge in-memory active downloads with persisted history
+    const persisted = getLocalDownloads();
+    const activeList = Object.values(activeDownloads);
+    // Merge: active downloads take priority (they have live progress)
+    const mergedMap = new Map<string, any>();
+    for (const d of persisted) mergedMap.set(d.id, d);
+    for (const d of activeList) mergedMap.set(d.id, d); // overwrite with active
+    return Array.from(mergedMap.values()).sort((a: any, b: any) => {
+      const timeA = a.startTime ? new Date(a.startTime).getTime() : Number(a.id);
+      const timeB = b.startTime ? new Date(b.startTime).getTime() : Number(b.id);
+      return timeB - timeA; // newest first
+    });
+  });
+
+  ipcMain.handle('clear-download-history', () => {
+    // Clear both in-memory and persisted
+    Object.keys(activeDownloads).forEach(k => delete activeDownloads[k]);
+    clearLocalDownloads();
+  });
+
+  // File actions for completed downloads
+  ipcMain.handle('open-download-file', async (_event, savePath: string) => {
+    if (savePath) {
+      const result = await shell.openPath(savePath);
+      if (result) console.warn('[Diamond] Failed to open file:', result);
+      return result;
+    }
+    return 'No file path provided';
+  });
+
+  ipcMain.handle('show-download-in-folder', (_event, savePath: string) => {
+    if (savePath) {
+      shell.showItemInFolder(savePath);
+    }
+  });
 
   // Normal browsing log
   ipcMain.handle('log-navigation', async (_event, url, title) => {
@@ -529,6 +578,11 @@ function setupIPCHandlers() {
   // Resolve custom redirect blocked URL for renderer
   ipcMain.handle('get-blocked-url', (_event, targetUrl, category, reason, layer) => {
     return getBlockedPageUrl(targetUrl, category, reason, layer);
+  });
+
+  // Get webview preload path (Synchronous)
+  ipcMain.on('get-webview-preload-path-sync', (event) => {
+    event.returnValue = `file://${webviewPreloadPath.replace(/\\/g, '/')}`;
   });
 }
 

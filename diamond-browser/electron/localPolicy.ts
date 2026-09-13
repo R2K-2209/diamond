@@ -64,6 +64,7 @@ const POLICY_FILE = path.join(DIAMOND_DIR, 'policy.json');
 const ALERTS_FILE = path.join(DIAMOND_DIR, 'alerts.json');
 const LOGS_FILE = path.join(DIAMOND_DIR, 'logs.json');
 const REQUESTS_FILE = path.join(DIAMOND_DIR, 'requests.json');
+const DOWNLOADS_FILE = path.join(DIAMOND_DIR, 'downloads.json');
 
 function ensureDir() {
   if (!fs.existsSync(DIAMOND_DIR)) {
@@ -294,4 +295,42 @@ export function removeBookmark(url: string): void {
   } catch (e) {
     console.error('[LocalPolicy] Error removing bookmark:', e);
   }
+}
+
+// ── Download History ──
+
+export function recordLocalDownload(download: any): void {
+  ensureDir();
+  try {
+    let list: any[] = [];
+    if (fs.existsSync(DOWNLOADS_FILE)) {
+      try { list = JSON.parse(fs.readFileSync(DOWNLOADS_FILE, 'utf8')); } catch {}
+    }
+    // Update existing download or add new
+    const existingIdx = list.findIndex((d: any) => d.id === download.id);
+    if (existingIdx !== -1) {
+      list[existingIdx] = { ...list[existingIdx], ...download };
+    } else {
+      list.unshift(download);
+    }
+    if (list.length > 500) list = list.slice(0, 500);
+    fs.writeFileSync(DOWNLOADS_FILE, JSON.stringify(list, null, 2), 'utf8');
+  } catch (e) {
+    console.error('[LocalPolicy] Error recording download:', e);
+  }
+}
+
+export function getLocalDownloads(): any[] {
+  try {
+    if (fs.existsSync(DOWNLOADS_FILE)) {
+      return JSON.parse(fs.readFileSync(DOWNLOADS_FILE, 'utf8'));
+    }
+  } catch {}
+  return [];
+}
+
+export function clearLocalDownloads(): void {
+  try {
+    fs.writeFileSync(DOWNLOADS_FILE, JSON.stringify([], null, 2), 'utf8');
+  } catch {}
 }

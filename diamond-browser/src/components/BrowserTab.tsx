@@ -248,7 +248,7 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
         // @ts-ignore
         allowpopups="false"
         // @ts-ignore
-        preload={`file://${(typeof __dirname !== 'undefined' ? __dirname : '').replace(/\\/g, '/')}/dist-electron/webviewPreload.js`}
+        preload={(window as any).electronAPI?.getWebviewPreloadPathSync?.() || ''}
       />
     </div>
   );

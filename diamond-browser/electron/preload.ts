@@ -78,5 +78,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => {
       ipcRenderer.removeListener('download-progress', handler);
     };
-  }
+  },
+
+  // Download history & file actions
+  getDownloadHistory: (): Promise<any[]> => ipcRenderer.invoke('get-download-history'),
+  clearDownloadHistory: (): Promise<void> => ipcRenderer.invoke('clear-download-history'),
+  openDownloadFile: (savePath: string): Promise<string> => ipcRenderer.invoke('open-download-file', savePath),
+  showDownloadInFolder: (savePath: string): Promise<void> => ipcRenderer.invoke('show-download-in-folder', savePath),
+
+  // Get webview preload path synchronously
+  getWebviewPreloadPathSync: (): string => ipcRenderer.sendSync('get-webview-preload-path-sync')
 });
