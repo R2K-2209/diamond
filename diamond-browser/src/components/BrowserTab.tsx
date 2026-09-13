@@ -105,7 +105,7 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
 
       try {
         if ((window as any).electronAPI?.logNavigation) {
-          (window as any).electronAPI.logNavigation(e.url, webview.getTitle() || 'Unknown');
+          (window as any).electronAPI.logNavigation(e.url, webview.getTitle() || 'Unknown').catch(() => {});
         }
       } catch (err) {
         console.error('Failed to log navigation', err);

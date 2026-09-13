@@ -175,17 +175,36 @@ export function recordLocalNavigation(url: string, title: string) {
     if (fs.existsSync(LOGS_FILE)) {
       try { list = JSON.parse(fs.readFileSync(LOGS_FILE, 'utf8')); } catch {}
     }
-    const newEntry = {
-      id: 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-      url,
-      title: title || 'Unknown',
-      timestamp: new Date().toISOString(),
-      userId: 'test-child-user',
-      safe: true,
-    };
-    list.unshift(newEntry);
-    if (list.length > 200) list = list.slice(0, 200);
-    fs.writeFileSync(LOGS_FILE, JSON.stringify(list, null, 2), 'utf8');
+
+    const now = Date.now();
+    let isDuplicate = false;
+
+    if (list.length > 0) {
+      const topEntry = list[0];
+      const timeDiff = now - new Date(topEntry.timestamp).getTime();
+      
+      if (topEntry.url === url && timeDiff < 60000) {
+        isDuplicate = true;
+        if (title && title !== 'Unknown' && (topEntry.title === 'Unknown' || topEntry.title === url)) {
+          list[0].title = title;
+          fs.writeFileSync(LOGS_FILE, JSON.stringify(list, null, 2), 'utf8');
+        }
+      }
+    }
+
+    if (!isDuplicate) {
+      const newEntry = {
+        id: 'log_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+        url,
+        title: title || 'Unknown',
+        timestamp: new Date().toISOString(),
+        userId: 'test-child-user',
+        safe: true,
+      };
+      list.unshift(newEntry);
+      if (list.length > 200) list = list.slice(0, 200);
+      fs.writeFileSync(LOGS_FILE, JSON.stringify(list, null, 2), 'utf8');
+    }
   } catch (e) {
     console.error('[LocalPolicy] Error recording navigation:', e);
   }
