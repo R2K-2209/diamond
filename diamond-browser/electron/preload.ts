@@ -7,6 +7,9 @@ import { contextBridge, ipcRenderer } from 'electron';
  * This is the preload for the main BrowserWindow, NOT the webview.
  */
 contextBridge.exposeInMainWorld('electronAPI', {
+  // Synchronous webview preload path resolution
+  getPreloadPath: () => ipcRenderer.sendSync('get-webview-preload-path'),
+
   // Navigation logging
   logNavigation: (url: string, title: string): Promise<void> =>
     ipcRenderer.invoke('log-navigation', url, title),

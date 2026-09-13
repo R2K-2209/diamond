@@ -113,6 +113,10 @@ function createWindow() {
   });
 }
 
+// ─── Set Standard User Agent ────────────────────────────────────
+// Fixes blank pages on YouTube and other sites that block Electron
+app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+
 let _lastNotifyUrl = '';
 let _lastNotifyTime = 0;
 
@@ -148,8 +152,19 @@ export function getBlockedPageUrl(targetUrl: string, category?: string, reason?:
 // ─── Layer 1+3: Network Interceptors ────────────────────────────
 
 function setupNetworkInterceptors() {
+  const customUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+  
+  session.defaultSession.setUserAgent(customUserAgent);
+  attachInterceptorsToSession(session.defaultSession);
+  
+  const diamondSession = session.fromPartition('persist:diamond');
+  diamondSession.setUserAgent(customUserAgent);
+  attachInterceptorsToSession(diamondSession);
+}
+
+function attachInterceptorsToSession(sess: Electron.Session) {
   // Global request filter
-  session.defaultSession.webRequest.onBeforeRequest(
+  sess.webRequest.onBeforeRequest(
     { urls: ['*://*/*'] },
     (details, callback) => {
       try {
@@ -164,6 +179,26 @@ function setupNetworkInterceptors() {
           parsed.protocol === 'chrome-extension:'
         ) {
           return callback({ cancel: false });
+        }
+
+        // Block Google internal widget/iframe URLs at the NETWORK level.
+        // These are background frames (hovercards, sidepanels, GAPI loaders) that
+        // Gmail/Drive load invisibly. If they reach the main frame, they hijack the page.
+        // Only block main_frame requests - sub_frame and other resource types are OK.
+        if (details.resourceType === 'mainFrame') {
+          const urlStr = details.url;
+          const isGoogleWidget = (
+            urlStr.includes('usegapi=1') ||
+            urlStr.includes('/hovercard/') ||
+            urlStr.includes('gapi.gapi') ||
+            (parsed.hostname.includes('contacts.google.com') && parsed.pathname.includes('/widget')) ||
+            (parsed.hostname.includes('studio.workspace.google.com') && parsed.pathname.includes('/sidepanel')) ||
+            (parsed.hostname.includes('people-pa.clients6.google.com'))
+          );
+          if (isGoogleWidget) {
+            console.log(`[DIAMOND] Blocked widget main_frame navigation: ${urlStr.substring(0, 100)}`);
+            return callback({ cancel: true });
+          }
         }
 
         // SafeSearch enforcement for search engines
@@ -220,20 +255,28 @@ function setupNetworkInterceptors() {
     }
   );
 
-  // YouTube Restricted Mode header injection
-  session.defaultSession.webRequest.onBeforeSendHeaders(
-    { urls: ['*://*.youtube.com/*', '*://*.googlevideo.com/*'] },
+  // Global header overrides
+  sess.webRequest.onBeforeSendHeaders(
+    { urls: ['*://*/*'] },
     (details, callback) => {
-      details.requestHeaders['YouTube-Restrict'] = 'Strict';
-      callback({ cancel: false, requestHeaders: details.requestHeaders });
-    }
-  );
+      const url = details.url.toLowerCase();
+      
+      // Use standard Google Chrome UA. Edge sometimes causes frame-busting bugs in Workspace Studio.
+      details.requestHeaders['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+      
+      // Spoof Chrome client hints. Deleting them entirely causes Google to flag the browser as anomalous!
+      details.requestHeaders['sec-ch-ua'] = '"Not_A Brand";v="8", "Chromium";v="130", "Google Chrome";v="130"';
+      details.requestHeaders['sec-ch-ua-mobile'] = '?0';
+      details.requestHeaders['sec-ch-ua-platform'] = '"Windows"';
 
-  // Google SafeSearch header (belt + suspenders with URL param)
-  session.defaultSession.webRequest.onBeforeSendHeaders(
-    { urls: ['*://*.google.com/*'] },
-    (details, callback) => {
-      details.requestHeaders['x-safe-search'] = 'strict';
+      // Safe mode injections
+      if (url.includes('youtube.com') || url.includes('googlevideo.com')) {
+        details.requestHeaders['YouTube-Restrict'] = 'Strict';
+      }
+      if (url.includes('google.com')) {
+        details.requestHeaders['x-safe-search'] = 'strict';
+      }
+      
       callback({ cancel: false, requestHeaders: details.requestHeaders });
     }
   );
@@ -243,39 +286,64 @@ function setupNetworkInterceptors() {
 
 function setupGuestWebContentsWatcher() {
   app.on('web-contents-created', (_event, contents) => {
-    // ── Handle new window requests (prevent new windows, but check safety and redirect/navigate) ──
+    // ── Handle new window requests ──
     contents.setWindowOpenHandler(({ url }) => {
-      let targetUrl = url;
+      // Always deny the popup window itself - we never want new Electron windows
+      
       try {
         const parsed = new URL(url);
         if (parsed.pathname.endsWith('blocked.html')) return { action: 'deny' };
+
+        // Silently deny Google internal widget/iframe URLs that Gmail/Drive try to open.
+        // These are background frames (hovercards, sidepanels, GAPI loaders) that should
+        // never navigate the main tab. If they open as windows, they show blank white pages.
+        const isGoogleWidget = (
+          parsed.hostname.includes('contacts.google.com') && parsed.pathname.includes('/widget') ||
+          parsed.hostname.includes('studio.workspace.google.com') && parsed.pathname.includes('/sidepanel') ||
+          parsed.hostname.includes('people-pa.clients6.google.com') ||
+          url.includes('usegapi=1') ||
+          url.includes('/_/scs/') ||
+          url.includes('/widget/') ||
+          url.includes('/hovercard/') ||
+          url.includes('gapi.gapi')
+        );
+        if (isGoogleWidget) {
+          console.log(`[DIAMOND] Silently denied Google widget popup: ${url.substring(0, 100)}...`);
+          return { action: 'deny' };
+        }
+
+        // Resolve Google redirect URLs
+        let targetUrl = url;
         if (parsed.hostname.includes('google.') && parsed.pathname === '/url') {
           const dest = parsed.searchParams.get('url') || parsed.searchParams.get('q');
           if (dest) targetUrl = dest;
         }
-      } catch {}
 
-      const check = checkUrlSafety(targetUrl);
-      if (check.blocked) {
-        console.warn(`[DIAMOND SHIELD] Blocked link / new window: ${targetUrl}`);
-        notifySiteBlocked(
-          targetUrl,
-          check.category || 'Restricted',
-          check.reason || 'Blocked link attempt',
-          check.layer || 'filter'
-        );
-        // Load blocked page directly INTO the webview
-        if (contents.getType() === 'webview') {
-          const blockedUrl = getBlockedPageUrl(targetUrl, check.category, check.reason, check.layer);
-          setImmediate(() => contents.loadURL(blockedUrl));
+        // Check safety
+        const check = checkUrlSafety(targetUrl);
+        if (check.blocked) {
+          console.warn(`[DIAMOND SHIELD] Blocked popup: ${targetUrl}`);
+          notifySiteBlocked(
+            targetUrl,
+            check.category || 'Restricted',
+            check.reason || 'Blocked link attempt',
+            check.layer || 'filter'
+          );
+          if (contents.getType() === 'webview') {
+            const blockedUrl = getBlockedPageUrl(targetUrl, check.category, check.reason, check.layer);
+            setImmediate(() => contents.loadURL(blockedUrl));
+          }
+          return { action: 'deny' };
         }
-        return { action: 'deny' };
+
+        // Safe real link (target="_blank" etc) - navigate the current webview to it
+        if (contents.getType() === 'webview') {
+          setImmediate(() => contents.loadURL(targetUrl));
+        }
+      } catch (e) {
+        console.warn('[DIAMOND] Error in window open handler:', e);
       }
 
-      // Safe link clicked with target="_blank": load in current webview
-      if (contents.getType() === 'webview') {
-        contents.loadURL(url);
-      }
       return { action: 'deny' };
     });
 
@@ -288,6 +356,19 @@ function setupGuestWebContentsWatcher() {
 
       // ── Layer 3: Navigation safety check ──
       contents.on('will-navigate', (event, navigationUrl) => {
+        // Block Google internal widget URLs from hijacking the main tab
+        if (
+          navigationUrl.includes('studio.workspace.google.com/') && navigationUrl.includes('/sidepanel') ||
+          navigationUrl.includes('contacts.google.com/widget') ||
+          navigationUrl.includes('usegapi=1') ||
+          navigationUrl.includes('/hovercard/') ||
+          navigationUrl.includes('gapi.gapi')
+        ) {
+          event.preventDefault();
+          console.log(`[DIAMOND] Blocked widget navigation: ${navigationUrl.substring(0, 100)}...`);
+          return;
+        }
+
         let targetUrl = navigationUrl;
         try {
           const parsed = new URL(navigationUrl);
@@ -395,7 +476,12 @@ const BLOCKED_EXTENSIONS = [
 const activeDownloads: Record<string, any> = {};
 
 function setupDownloadManager() {
-  session.defaultSession.on('will-download', (event, item, webContents) => {
+  attachDownloadListenerToSession(session.defaultSession);
+  attachDownloadListenerToSession(session.fromPartition('persist:diamond'));
+}
+
+function attachDownloadListenerToSession(sess: Electron.Session) {
+  sess.on('will-download', (event, item, webContents) => {
     const filename = item.getFilename().toLowerCase();
 
     const isBlocked = BLOCKED_EXTENSIONS.some(ext => filename.endsWith(ext));
@@ -582,7 +668,7 @@ function setupIPCHandlers() {
 
   // Get webview preload path (Synchronous)
   ipcMain.on('get-webview-preload-path-sync', (event) => {
-    event.returnValue = `file://${webviewPreloadPath.replace(/\\/g, '/')}`;
+    event.returnValue = `file://${webviewPreloadPath.replace(/\\\\/g, '/')}`;
   });
 }
 
