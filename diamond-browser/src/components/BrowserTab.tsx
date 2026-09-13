@@ -52,7 +52,12 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
     };
 
     const handleDidNavigate = (e: any) => {
-      if (e.url === 'about:blank') return;
+      if (e.url === 'about:blank') {
+        if (tab.lastInternalUrl) {
+          onUpdate(tab.id, { currentUrl: tab.lastInternalUrl, urlInput: tab.lastInternalUrl });
+        }
+        return;
+      }
       // If the webview landed on blocked.html, extract params and show block screen
       if (e.url && e.url.includes('blocked.html')) {
         try {
@@ -209,7 +214,7 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
       {isNewTab && (
         <div className="absolute inset-0 z-10">
           <NewTab onNavigate={(url) => {
-            onUpdate(tab.id, { urlInput: url, currentUrl: url, isLoading: true });
+            onUpdate(tab.id, { urlInput: url, currentUrl: url, isLoading: true, lastInternalUrl: 'diamond://newtab' });
           }} />
         </div>
       )}
@@ -220,7 +225,9 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
       )}
       {isHistory && (
         <div className="absolute inset-0 z-10">
-          <HistoryPage />
+          <HistoryPage onNavigate={(url) => {
+            onUpdate(tab.id, { urlInput: url, currentUrl: url, isLoading: true, lastInternalUrl: 'diamond://history' });
+          }} />
         </div>
       )}
       {isDownloads && (

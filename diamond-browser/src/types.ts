@@ -43,6 +43,7 @@ export interface TabData {
   blockedInfo: BlockedState | null;
   requestSent: boolean;
   showAdvanced: boolean;
+  lastInternalUrl?: string;
 }
 
 export interface ProtectionStatus {

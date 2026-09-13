@@ -309,12 +309,19 @@ function App() {
       handleUpdateTab(activeTabId, { blockedInfo: null, requestSent: false, showAdvanced: false });
       if (activeWebview?.canGoBack()) {
         activeWebview.goBack();
+      } else if (activeTab.lastInternalUrl) {
+        handleUpdateTab(activeTabId, { currentUrl: activeTab.lastInternalUrl, urlInput: activeTab.lastInternalUrl });
       } else {
         handleHome();
       }
       return;
     }
-    if (activeWebview?.canGoBack()) activeWebview.goBack();
+    
+    if (activeWebview?.canGoBack()) {
+      activeWebview.goBack();
+    } else if (activeTab.lastInternalUrl) {
+      handleUpdateTab(activeTabId, { currentUrl: activeTab.lastInternalUrl, urlInput: activeTab.lastInternalUrl });
+    }
   };
 
   const handleForward = () => {

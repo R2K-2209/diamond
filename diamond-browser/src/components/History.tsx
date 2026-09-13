@@ -9,7 +9,7 @@ interface HistoryItem {
   safe: boolean;
 }
 
-export function HistoryPage() {
+export function HistoryPage({ onNavigate }: { onNavigate?: (url: string) => void }) {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -104,7 +104,8 @@ export function HistoryPage() {
                     return (
                       <div 
                         key={item.id} 
-                        className="group flex items-center gap-4 px-4 py-[10px] hover:bg-[#3c4043] transition-colors cursor-default"
+                        onClick={() => onNavigate?.(item.url)}
+                        className="group flex items-center gap-4 px-4 py-[10px] hover:bg-[#3c4043] transition-colors cursor-pointer"
                       >
                         <div className="text-[13px] text-[#9aa0a6] w-[70px] shrink-0 text-right pr-2">
                           {formatTime(item.timestamp)}
