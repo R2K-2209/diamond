@@ -16,6 +16,12 @@ interface BrowserTabProps {
 
 export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onUpdate, onTriggerBlock }, ref) => {
   const webviewRef = useRef<any>(null);
+  
+  // Keep a fresh ref to tab to avoid stale closures in useEffect event listeners
+  const tabRef = useRef(tab);
+  useEffect(() => {
+    tabRef.current = tab;
+  }, [tab]);
 
   // Expose the webview ref to the parent
   useImperativeHandle(ref, () => webviewRef.current);
@@ -58,9 +64,10 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
     };
 
     const handleDidNavigate = (e: any) => {
+      const currentTab = tabRef.current;
       if (e.url === 'about:blank') {
-        if (tab.lastInternalUrl) {
-          onUpdate(tab.id, { currentUrl: tab.lastInternalUrl, urlInput: tab.lastInternalUrl });
+        if (currentTab.lastInternalUrl) {
+          onUpdate(currentTab.id, { currentUrl: currentTab.lastInternalUrl, urlInput: currentTab.lastInternalUrl });
         }
         return;
       }
@@ -140,7 +147,8 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
     const handleDidFailLoad = (e: any) => {
       if (e.isMainFrame === false) return;
 
-      let target = e.validatedURL || tab.urlInput || tab.currentUrl;
+      const currentTab = tabRef.current;
+      let target = e.validatedURL || currentTab.urlInput || currentTab.currentUrl;
       if (!target || target.startsWith('chrome-') || target.startsWith('devtools://')) return;
       if (target.includes('blocked.html')) return;
       if (e.errorCode === -3) return; // Aborted
@@ -179,13 +187,13 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
       }
 
       if (e.channel === 'go-back-to-safety') {
-        if (webview.canGoBack()) {
-          // Check if previous URL is safe before going back?
-          // Since going back might just trigger the blocked page again if the history was replaced,
-          // let's try going back, but if we are at the beginning of history, go to a safe page.
-          webview.goBack();
+        const currentTab = tabRef.current;
+        onUpdate(currentTab.id, { blockedInfo: null, requestSent: false, showAdvanced: false });
+        
+        if (currentTab.currentUrl && !currentTab.currentUrl.startsWith('diamond://')) {
+          webview.loadURL(currentTab.currentUrl);
         } else {
-          webview.loadURL('https://www.google.com');
+          onUpdate(currentTab.id, { currentUrl: 'diamond://newtab', urlInput: 'diamond://newtab', title: 'New Tab' });
         }
         return;
       }

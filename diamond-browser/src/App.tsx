@@ -325,12 +325,21 @@ function App() {
   };
 
   const handleBack = () => {
+    const getInternalPageTitle = (url: string) => {
+      if (url.includes('history')) return 'History';
+      if (url.includes('settings')) return 'Settings';
+      if (url.includes('bookmarks')) return 'Bookmarks';
+      if (url.includes('downloads')) return 'Downloads';
+      if (url.includes('newtab')) return 'New Tab';
+      return 'Diamond';
+    };
+
     if (activeTab.blockedInfo) {
       handleUpdateTab(activeTabId, { blockedInfo: null, requestSent: false, showAdvanced: false });
-      if (activeWebview?.canGoBack()) {
-        activeWebview.goBack();
-      } else if (activeTab.lastInternalUrl) {
-        handleUpdateTab(activeTabId, { currentUrl: activeTab.lastInternalUrl, urlInput: activeTab.lastInternalUrl });
+      
+      // If we have a known safe previous URL that isn't the new tab, go there
+      if (activeTab.currentUrl && !activeTab.currentUrl.startsWith('diamond://')) {
+        try { activeWebview?.loadURL(activeTab.currentUrl); } catch {}
       } else {
         handleHome();
       }
@@ -340,7 +349,11 @@ function App() {
     if (activeWebview?.canGoBack()) {
       activeWebview.goBack();
     } else if (activeTab.lastInternalUrl) {
-      handleUpdateTab(activeTabId, { currentUrl: activeTab.lastInternalUrl, urlInput: activeTab.lastInternalUrl });
+      handleUpdateTab(activeTabId, { 
+        currentUrl: activeTab.lastInternalUrl, 
+        urlInput: activeTab.lastInternalUrl,
+        title: getInternalPageTitle(activeTab.lastInternalUrl)
+      });
     }
   };
 
