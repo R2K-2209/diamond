@@ -59,3 +59,13 @@ npm run dev
 - **Desktop App:** Electron, Vite, React, TypeScript, Tailwind CSS
 - **Dashboard:** Next.js 15, React, TypeScript, Tailwind CSS
 - **Backend / Database:** Firebase (Authentication, Cloud Firestore)
+
+---
+
+## 📈 Recent Updates
+
+- **History Feature Polish (diamond-browser):**
+  - Designed a premium, Google Chrome-style History UI in React, complete with dark-mode, daily grouping, and clean tabular row layouts.
+  - Implemented smart navigation deduplication in the Electron Main process (60-second cooldown) to prevent excessive duplicate logging on redirects.
+  - Added frontend deduplication logic to retroactively clean up old duplicate log files.
+  - Silenced unhandled Promise rejections from IPC logging streams (`logNavigation`).
