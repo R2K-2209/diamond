@@ -33,7 +33,13 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
     if (!webview) return;
 
     const handlePageTitleUpdated = (e: any) => {
-      onUpdate(tab.id, { title: e.title || 'Unknown' });
+      const newTitle = e.title || 'Unknown';
+      onUpdate(tab.id, { title: newTitle });
+      try {
+        if ((window as any).electronAPI?.logNavigation) {
+          (window as any).electronAPI.logNavigation(webview.getURL(), newTitle).catch(() => {});
+        }
+      } catch (err) {}
     };
 
     const handlePageFaviconUpdated = (e: any) => {

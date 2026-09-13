@@ -23,6 +23,7 @@ import {
   recordLocalRequest,
   getLocalHistory,
   clearLocalHistory,
+  deleteLocalHistoryItem,
   getBookmarks,
   addBookmark,
   removeBookmark,
@@ -124,6 +125,7 @@ export function notifySiteBlocked(url: string, category: string, reason: string,
   _lastNotifyTime = now;
 
   logSecurityAlert(url, category, reason);
+  recordLocalNavigation(url, category ? `Blocked: ${category}` : 'Blocked Site', true);
   if (win && !win.isDestroyed()) {
     win.webContents.send('site-blocked', { url, category, reason, layer });
   }
@@ -505,6 +507,7 @@ function setupIPCHandlers() {
   // Explicit block log from renderer
   ipcMain.handle('log-blocked', async (_event, url, reason, category) => {
     await logSecurityAlert(url, category || 'Restricted', reason || 'Blocked');
+    recordLocalNavigation(url, category ? `Blocked: ${category}` : 'Blocked Site', true);
   });
 
   // Child requests parent permission
@@ -530,6 +533,11 @@ function setupIPCHandlers() {
   ipcMain.handle('clear-history', () => {
     console.log('[IPC] clear-history called');
     clearLocalHistory();
+  });
+  ipcMain.handle('delete-history-item', (_e, id) => {
+    console.log('[IPC] delete-history-item called for id:', id);
+    deleteLocalHistoryItem(id);
+    return true;
   });
 
   // Bookmarks

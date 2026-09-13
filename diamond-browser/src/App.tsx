@@ -295,6 +295,26 @@ function App() {
     }
 
     const finalized = enforceSafeSearch(targetUrl);
+
+    if (targetUrl.startsWith('diamond://')) {
+      const getInternalPageTitle = (url: string) => {
+        if (url.includes('history')) return 'History';
+        if (url.includes('settings')) return 'Settings';
+        if (url.includes('bookmarks')) return 'Bookmarks';
+        if (url.includes('downloads')) return 'Downloads';
+        if (url.includes('newtab')) return 'New Tab';
+        return 'Diamond';
+      };
+      
+      handleUpdateTab(activeTabId, {
+        blockedInfo: null,
+        currentUrl: targetUrl,
+        urlInput: targetUrl,
+        title: getInternalPageTitle(targetUrl)
+      });
+      return;
+    }
+
     handleUpdateTab(activeTabId, {
       blockedInfo: null,
       currentUrl: finalized,
@@ -344,7 +364,8 @@ function App() {
   const handleHome = () => {
     handleUpdateTab(activeTabId, { 
       blockedInfo: null, requestSent: false, showAdvanced: false, 
-      currentUrl: 'diamond://newtab', urlInput: 'diamond://newtab' 
+      currentUrl: 'diamond://newtab', urlInput: 'diamond://newtab',
+      title: 'New Tab'
     });
     // No need to loadURL on webview since it gets hidden
   };
@@ -586,21 +607,21 @@ function App() {
                 
                 <div className="my-1.5 border-t border-white/5"></div>
 
-                <button className="w-full px-4 py-2.5 text-left text-[13px] text-gray-200 hover:bg-white/5 flex items-center justify-between transition-colors" onClick={() => { handleUpdateTab(activeTabId, { urlInput: 'diamond://history', currentUrl: 'diamond://history' }); setShowBrowserMenu(false); }}>
+                <button className="w-full px-4 py-2.5 text-left text-[13px] text-gray-200 hover:bg-white/5 flex items-center justify-between transition-colors" onClick={() => { handleUpdateTab(activeTabId, { urlInput: 'diamond://history', currentUrl: 'diamond://history', title: 'History' }); setShowBrowserMenu(false); }}>
                   <div className="flex items-center gap-3">
                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     History
                   </div>
                   <span className="text-xs text-gray-500 font-mono">Ctrl+H</span>
                 </button>
-                <button className="w-full px-4 py-2.5 text-left text-[13px] text-gray-200 hover:bg-white/5 flex items-center justify-between transition-colors" onClick={() => { handleUpdateTab(activeTabId, { urlInput: 'diamond://bookmarks', currentUrl: 'diamond://bookmarks' }); setShowBrowserMenu(false); }}>
+                <button className="w-full px-4 py-2.5 text-left text-[13px] text-gray-200 hover:bg-white/5 flex items-center justify-between transition-colors" onClick={() => { handleUpdateTab(activeTabId, { urlInput: 'diamond://bookmarks', currentUrl: 'diamond://bookmarks', title: 'Bookmarks' }); setShowBrowserMenu(false); }}>
                   <div className="flex items-center gap-3">
                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
                     Bookmarks
                   </div>
                   <span className="text-xs text-gray-500 font-mono">Ctrl+B</span>
                 </button>
-                <button className="w-full px-4 py-2.5 text-left text-[13px] text-gray-200 hover:bg-white/5 flex items-center justify-between transition-colors" onClick={() => { handleUpdateTab(activeTabId, { urlInput: 'diamond://downloads', currentUrl: 'diamond://downloads' }); setShowBrowserMenu(false); }}>
+                <button className="w-full px-4 py-2.5 text-left text-[13px] text-gray-200 hover:bg-white/5 flex items-center justify-between transition-colors" onClick={() => { handleUpdateTab(activeTabId, { urlInput: 'diamond://downloads', currentUrl: 'diamond://downloads', title: 'Downloads' }); setShowBrowserMenu(false); }}>
                   <div className="flex items-center gap-3">
                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                     Downloads
@@ -649,7 +670,7 @@ function App() {
                 
                 <div className="my-1.5 border-t border-white/5"></div>
                 
-                <button className="w-full px-4 py-2.5 text-left text-[13px] text-gray-200 hover:bg-white/5 flex items-center gap-3 transition-colors" onClick={() => { handleUpdateTab(activeTabId, { urlInput: 'diamond://settings', currentUrl: 'diamond://settings' }); setShowBrowserMenu(false); }}>
+                <button className="w-full px-4 py-2.5 text-left text-[13px] text-gray-200 hover:bg-white/5 flex items-center gap-3 transition-colors" onClick={() => { handleUpdateTab(activeTabId, { urlInput: 'diamond://settings', currentUrl: 'diamond://settings', title: 'Settings' }); setShowBrowserMenu(false); }}>
                   <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                   Settings
                 </button>

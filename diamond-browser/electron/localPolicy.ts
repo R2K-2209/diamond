@@ -169,7 +169,7 @@ export function recordLocalAlert(alert: { url: string; category: string; reason:
   }
 }
 
-export function recordLocalNavigation(url: string, title: string) {
+export function recordLocalNavigation(url: string, title: string, blocked = false) {
   ensureDir();
   try {
     let list: any[] = [];
@@ -186,8 +186,17 @@ export function recordLocalNavigation(url: string, title: string) {
       
       if (topEntry.url === url && timeDiff < 60000) {
         isDuplicate = true;
+        let changed = false;
         if (title && title !== 'Unknown' && (topEntry.title === 'Unknown' || topEntry.title === url)) {
           list[0].title = title;
+          changed = true;
+        }
+        if (blocked && !topEntry.blocked) {
+          list[0].blocked = true;
+          list[0].safe = false;
+          changed = true;
+        }
+        if (changed) {
           fs.writeFileSync(LOGS_FILE, JSON.stringify(list, null, 2), 'utf8');
         }
       }
@@ -200,7 +209,8 @@ export function recordLocalNavigation(url: string, title: string) {
         title: title || 'Unknown',
         timestamp: new Date().toISOString(),
         userId: 'test-child-user',
-        safe: true,
+        safe: !blocked,
+        blocked,
       };
       list.unshift(newEntry);
       if (list.length > 200) list = list.slice(0, 200);
@@ -250,6 +260,18 @@ export function clearLocalHistory(): void {
   try {
     fs.writeFileSync(LOGS_FILE, JSON.stringify([], null, 2), 'utf8');
   } catch {}
+}
+
+export function deleteLocalHistoryItem(id: string): void {
+  try {
+    if (fs.existsSync(LOGS_FILE)) {
+      let list = JSON.parse(fs.readFileSync(LOGS_FILE, 'utf8'));
+      list = list.filter((item: any) => item.id !== id);
+      fs.writeFileSync(LOGS_FILE, JSON.stringify(list, null, 2), 'utf8');
+    }
+  } catch (e) {
+    console.error('[LocalPolicy] Error deleting history item:', e);
+  }
 }
 
 export function getBookmarks(): any[] {

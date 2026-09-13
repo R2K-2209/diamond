@@ -64,6 +64,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // History
   getHistory: (): Promise<any[]> => ipcRenderer.invoke('get-history'),
   clearHistory: (): Promise<void> => ipcRenderer.invoke('clear-history'),
+  deleteHistoryItem: (id: string): Promise<void> => ipcRenderer.invoke('delete-history-item', id),
 
   // Bookmarks
   getBookmarks: (): Promise<any[]> => ipcRenderer.invoke('get-bookmarks'),

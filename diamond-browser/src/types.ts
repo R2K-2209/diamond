@@ -21,6 +21,7 @@ declare global {
       closeWindow: () => void;
       getHistory: () => Promise<any[]>;
       clearHistory: () => void;
+      deleteHistoryItem: (id: string) => Promise<void>;
       getBookmarks: () => Promise<any[]>;
       addBookmark: (url: string, title: string, favicon?: string) => void;
       removeBookmark: (url: string) => void;

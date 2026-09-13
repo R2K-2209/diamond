@@ -7,6 +7,7 @@ interface HistoryItem {
   timestamp: string;
   userId: string;
   safe: boolean;
+  blocked?: boolean;
 }
 
 export function HistoryPage({ onNavigate }: { onNavigate?: (url: string) => void }) {
@@ -15,6 +16,18 @@ export function HistoryPage({ onNavigate }: { onNavigate?: (url: string) => void
 
   useEffect(() => {
     loadHistory();
+    
+    // Auto-refresh history every 2 seconds so the user doesn't have to manually reload
+    const intervalId = setInterval(loadHistory, 2000);
+    
+    // Also listen for main process updates if we ever implement push events
+    const api = (window as any).electronAPI;
+    const cleanup = api?.onHistoryUpdated?.(() => loadHistory());
+
+    return () => {
+      clearInterval(intervalId);
+      cleanup?.();
+    };
   }, []);
 
   const loadHistory = async () => {
@@ -32,6 +45,13 @@ export function HistoryPage({ onNavigate }: { onNavigate?: (url: string) => void
     }
   };
 
+  const handleDeleteItem = async (id: string) => {
+    if (window.electronAPI?.deleteHistoryItem) {
+      await window.electronAPI.deleteHistoryItem(id);
+      setHistory(prev => prev.filter(item => item.id !== id));
+    }
+  };
+
   const formatTime = (isoStr: string) => {
     const d = new Date(isoStr);
     let timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -40,20 +60,45 @@ export function HistoryPage({ onNavigate }: { onNavigate?: (url: string) => void
 
   const groupedHistory = useMemo(() => {
     const groups: { [date: string]: HistoryItem[] } = {};
+    const seenUrlsPerDay: { [date: string]: Set<string> } = {};
+    
     const today = new Date().toDateString();
     const yesterday = new Date(Date.now() - 86400000).toDateString();
 
-    let lastUrl = '';
-    let lastTime = 0;
+    const getDedupeKey = (url: string) => {
+      try {
+        const p = new URL(url);
+        const host = p.hostname.replace(/^www\./, '');
+        
+        if (host.includes('google.') && p.pathname.startsWith('/search')) {
+          const q = p.searchParams.get('q') || '';
+          if (q) return host + '/search?q=' + q.toLowerCase();
+        }
+        if (host.includes('youtube.com') && p.pathname.startsWith('/watch')) {
+          const v = p.searchParams.get('v') || '';
+          if (v) return host + '/watch?v=' + v;
+        }
+        
+        let base = host + p.pathname;
+        if (base.endsWith('/')) base = base.slice(0, -1);
+        return base + p.search;
+      } catch {
+        return url;
+      }
+    };
 
     history.forEach(item => {
-      // Filter out duplicate entries that are close in time (for old logs before deduplication was added)
-      const itemTime = new Date(item.timestamp).getTime();
-      if (item.url === lastUrl && Math.abs(lastTime - itemTime) < 300000) {
-        return; // skip display
+      // Clean history: Filter out background auth bounces and sign-in redirects
+      const urlLower = item.url.toLowerCase();
+      if (
+        urlLower.includes('accounts.google.com') ||
+        urlLower.includes('accounts.youtube.com') ||
+        urlLower.includes('/signin') ||
+        urlLower.includes('/oauth') ||
+        urlLower === 'about:blank'
+      ) {
+        return; 
       }
-      lastUrl = item.url;
-      lastTime = itemTime;
 
       const d = new Date(item.timestamp);
       const dateString = d.toDateString();
@@ -62,7 +107,19 @@ export function HistoryPage({ onNavigate }: { onNavigate?: (url: string) => void
       if (dateString === today) label = 'Today - ' + label;
       else if (dateString === yesterday) label = 'Yesterday - ' + label;
 
-      if (!groups[label]) groups[label] = [];
+      if (!groups[label]) {
+        groups[label] = [];
+        seenUrlsPerDay[label] = new Set<string>();
+      }
+
+      const dedupeKey = getDedupeKey(item.url);
+
+      // Deduplicate by normalized URL per day (keeps only the most recent visit)
+      if (seenUrlsPerDay[label].has(dedupeKey)) {
+        return; 
+      }
+      seenUrlsPerDay[label].add(dedupeKey);
+
       groups[label].push(item);
     });
 
@@ -116,13 +173,26 @@ export function HistoryPage({ onNavigate }: { onNavigate?: (url: string) => void
                         <div className="flex-1 min-w-0 flex items-center gap-3">
                           <div className="text-[13px] text-[#e8eaed] truncate max-w-[60%]" title={item.title}>
                             {item.title}
+                            {item.blocked && (
+                              <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-900/50 text-red-400 border border-red-800">
+                                Blocked
+                              </span>
+                            )}
                           </div>
                           <div className="text-[13px] text-[#9aa0a6] truncate" title={item.url}>
                             {domain}
                           </div>
                         </div>
-                        <div className="w-8 h-8 flex justify-center items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                           <svg className="w-5 h-5 text-[#9aa0a6] hover:bg-white/10 rounded-full p-0.5 cursor-pointer" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                        <div 
+                          className="w-8 h-8 flex justify-center items-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteItem(item.id);
+                          }}
+                        >
+                           <svg className="w-5 h-5 text-[#9aa0a6] hover:text-red-400 hover:bg-white/10 rounded-full p-0.5 cursor-pointer transition-colors" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zm2.46-7.12l1.41-1.41L12 12.59l2.12-2.12 1.41 1.41L13.41 14l2.12 2.12-1.41 1.41L12 15.41l-2.12 2.12-1.41-1.41L10.59 14l-2.12-2.12zM15.5 4l-1-1h-5l-1 1H5v2h14V4z"/>
+                           </svg>
                         </div>
                       </div>
                     );
