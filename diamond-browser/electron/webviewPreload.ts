@@ -213,8 +213,43 @@ window.addEventListener('load', () => {
 });
 
 // Expose safe API for blocked.html to request parental access
-(window as any).electronAPI = {
-  requestAccess: (url: string, category?: string) => {
-    ipcRenderer.sendToHost('request-access', { url, category });
-  },
-};
+import { contextBridge, webFrame } from 'electron';
+
+// Spoof navigator properties in the main world before Google's scripts run
+try {
+  webFrame.executeJavaScript(`
+    try {
+      Object.defineProperty(navigator, 'webdriver', { get: () => false });
+      if (navigator.userAgentData) {
+        Object.defineProperty(navigator.userAgentData, 'brands', {
+          get: () => [
+            { brand: 'Not_A Brand', version: '8' },
+            { brand: 'Chromium', version: '130' },
+            { brand: 'Google Chrome', version: '130' }
+          ]
+        });
+      }
+    } catch (e) {}
+  `);
+} catch (e) {}
+
+try {
+  contextBridge.exposeInMainWorld('electronAPI', {
+    requestAccess: (url: string, category?: string) => {
+      ipcRenderer.sendToHost('request-access', { url, category });
+    },
+    goBackToSafety: () => {
+      ipcRenderer.sendToHost('go-back-to-safety', {});
+    },
+  });
+} catch (e) {
+  // Fallback for non-isolated contexts (though contextIsolation is enabled)
+  (window as any).electronAPI = {
+    requestAccess: (url: string, category?: string) => {
+      ipcRenderer.sendToHost('request-access', { url, category });
+    },
+    goBackToSafety: () => {
+      ipcRenderer.sendToHost('go-back-to-safety', {});
+    },
+  };
+}

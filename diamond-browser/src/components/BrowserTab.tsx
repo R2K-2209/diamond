@@ -64,6 +64,20 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
         }
         return;
       }
+
+      // Ignore Google widget URLs — these are blocked at the network level in main.ts
+      // but if one slips through, don't update the UI with its URL.
+      const url = e.url || '';
+      if (
+        url.includes('usegapi=1') ||
+        url.includes('/hovercard/') ||
+        url.includes('/sidepanel/') ||
+        url.includes('gapi.gapi') ||
+        (url.includes('contacts.google.com') && url.includes('/widget')) ||
+        (url.includes('studio.workspace.google.com') && url.includes('sidepanel'))
+      ) {
+        return; // Don't update UI
+      }
       // If the webview landed on blocked.html, extract params and show block screen
       if (e.url && e.url.includes('blocked.html')) {
         try {
@@ -164,6 +178,18 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
         return;
       }
 
+      if (e.channel === 'go-back-to-safety') {
+        if (webview.canGoBack()) {
+          // Check if previous URL is safe before going back?
+          // Since going back might just trigger the blocked page again if the history was replaced,
+          // let's try going back, but if we are at the beginning of history, go to a safe page.
+          webview.goBack();
+        } else {
+          webview.loadURL('https://www.google.com');
+        }
+        return;
+      }
+
       if (e.channel === 'content-flagged' && e.args?.[0]) {
         const data = e.args[0];
         onTriggerBlock(tab.id, data.url, data.category, data.reason, 'content-scan');
@@ -174,6 +200,25 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
       e.preventDefault();
       const target = e.url;
       if (!target) return;
+
+      // Silently ignore Google internal widget/iframe popup URLs.
+      // Gmail/Drive try to open these as hidden iframes; they must NEVER navigate the main webview.
+      try {
+        const isGoogleWidget = (
+          target.includes('usegapi=1') ||
+          target.includes('/widget/') ||
+          target.includes('/hovercard/') ||
+          target.includes('/sidepanel/') ||
+          target.includes('gapi.gapi') ||
+          target.includes('/_/scs/') ||
+          target.includes('people-pa.clients6.google.com') ||
+          (target.includes('contacts.google.com') && target.includes('/widget'))
+        );
+        if (isGoogleWidget) {
+          console.log('[Diamond] Silently ignored Google widget popup:', target.substring(0, 80));
+          return; // Do nothing — don't navigate the webview
+        }
+      } catch {}
       
       let checkedUrl = target;
       try {
@@ -254,6 +299,11 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
         // @ts-ignore
         allowpopups="false"
         // @ts-ignore
+        partition="persist:diamond"
+        // @ts-ignore
+        useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+        // @ts-ignore
+        webpreferences="contextIsolation=true, sandbox=false"
         preload={(window as any).electronAPI?.getWebviewPreloadPathSync?.() || ''}
       />
     </div>
