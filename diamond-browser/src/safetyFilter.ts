@@ -5,10 +5,26 @@
  * This is a fast, synchronous local fallback that works alongside:
  *   Layer 1 (Cloudflare Family DNS) — blocks millions of domains at DNS level
  *   Layer 2 (Firebase Policy Sync) — parent-managed dynamic rules
- *   Layer 4 (DOM Content Scanner) — post-load page inspection
+ *   Layer 4 (DOM Content Scanner) — post-load page inspection + MutationObserver
+ *   Layer 5 (ML Image Analysis) — on-device nsfwjs image classification
+ * 
+ * All word lists and domain patterns are imported from the unified
+ * shieldDictionary module (base64-encoded for source code cleanliness).
  */
 
 import { getPolicy, type ContentPolicy } from './policySync';
+import {
+  ADULT_DOMAIN_PATTERNS,
+  ADULT_TLDS,
+  ADULT_TOKENS,
+  GAMBLING_PATTERNS,
+  GAMBLING_TOKENS,
+  PIRACY_PATTERNS,
+  SOCIAL_MEDIA_DOMAINS,
+  GAMING_DOMAINS,
+  VPN_PROXY_DOMAINS,
+  URL_SHORTENER_DOMAINS,
+} from './shieldDictionary';
 
 // ─── Safety Result Types ────────────────────────────────────────
 
@@ -32,94 +48,6 @@ export interface SafetyCheckResult {
   matchedRule?: string;
   layer?: 'local' | 'cloud' | 'dns' | 'content-scan';
 }
-
-// ─── Domain Pattern Lists ───────────────────────────────────────
-
-const ADULT_DOMAIN_PATTERNS = [
-  'xhamster', 'pornhub', 'xvideos', 'xnxx', 'redtube', 'youporn',
-  'brazzers', 'chaturbate', 'onlyfans', 'stripchat', 'beeg', 'spankbang',
-  'tubegalore', 'livejasmin', 'cam4', 'camsoda', 'bongacams', 'faphouse',
-  'eporner', 'tnaflix', 'motherless', 'noodlemagazine', 'daftsex', 'heavy-r',
-  'hentai', 'rule34', 'nhentai', 'e-hentai', 'erome', 'fapello',
-  'thothub', 'coomer', 'kemono', 'luscious', 'badjojo', 'fuq',
-  'hqporner', 'txxx', 'upornia', 'vjav', 'javhd', 'javbus',
-  'missav', 'jable', 'porndig', 'slutload', 'empflix', 'playboy',
-  'penthouse', 'hustler', 'redwap', 'indianporn', 'desiporn', 'porn555',
-  'tube8', 'bangbros', 'realitykings', 'naughtyamerica', 'twistys',
-  'drtuber', 'nuvid', 'porntube', 'sunporno', 'zbporn', 'pornrabbit',
-  'anyporn', '4tube', 'porndoe', 'xtapes', 'pornhat', 'pornktube',
-  'palimas', 'sexvid', 'porn00', 'fullporner', 'freeadult', 'xxxking',
-  'hardcoresex', 'eroticmv', 'pornone', 'javcl', 'javsub', 'supjav',
-  'avgle', 'javdoe', 'javfree', '7mmtv', 'thumbzilla', 'redgifs',
-  'myfreecams', 'flirt4free', 'imlive', 'streamate', 'camwhores',
-  'adultfriendfinder', 'ashleymadison', 'fetlife', 'eroticity',
-  'porno', 'xxx', 'terk',
-];
-
-const ADULT_TLDS = ['.xxx', '.porn', '.adult', '.sex', '.cam'];
-
-const ADULT_TOKENS = new Set([
-  'porn', 'porno', 'xxx', 'sex', 'hentai', 'erotic', 'erotica',
-  'nude', 'nudes', 'naked', 'nsfw', 'boobs', 'dildo', 'vagina',
-  'penis', 'fetish', 'blowjob', 'creampie', 'cumshot', 'orgasm',
-  'horny', 'milf', 'incest', 'fap', 'escort', 'stripper', 'camgirl',
-  'deepthroat', 'threesome', 'gangbang', 'hardcore',
-]);
-
-const GAMBLING_PATTERNS = [
-  'bet365', '1xbet', 'parimatch', 'betway', 'bovada',
-  'draftkings', 'fanduel', 'betfair', '888casino', 'pokerstars',
-  'roobet', 'rollbit', 'stake.com', 'casumo', 'leovegas', 'betsson',
-  'unibet', 'bwin', 'williamhill', 'paddypower', 'ladbrokes',
-  'coral', 'sportingbet', 'pinnacle', '22bet', 'melbet',
-  'betvictor', 'betfred', 'skybet', 'betano',
-];
-
-const GAMBLING_TOKENS = new Set([
-  'casino', 'gambling', 'poker', 'roulette', 'blackjack',
-  'slots', 'bookmaker', 'sportsbet', 'bookie',
-]);
-
-const PIRACY_PATTERNS = [
-  'thepiratebay', '1337x', 'yts.mx', 'rarbg', 'torrentz',
-  'fitgirl-repacks', 'kickass', 'limetorrents', 'torrentgalaxy',
-  'nyaa', 'rutracker', 'pirateiro',
-];
-
-// ─── New Category Lists (Layer 3 Enhancement) ──────────────────
-
-const SOCIAL_MEDIA_DOMAINS = [
-  'tiktok.com', 'instagram.com', 'snapchat.com', 'twitter.com',
-  'x.com', 'facebook.com', 'threads.net', 'mastodon.social',
-  'tumblr.com', 'reddit.com', 'pinterest.com', 'linkedin.com',
-  'whatsapp.com', 'web.whatsapp.com', 'telegram.org', 'web.telegram.org',
-  'signal.org', 'discord.com', 'discord.gg',
-];
-
-const GAMING_DOMAINS = [
-  'store.steampowered.com', 'steampowered.com', 'epicgames.com',
-  'origin.com', 'ea.com', 'ubisoft.com', 'twitch.tv',
-  'roblox.com', 'miniclip.com', 'kongregate.com', 'newgrounds.com',
-  'itch.io', 'gog.com', 'humblebundle.com',
-  'battlenet.com', 'blizzard.com',
-];
-
-const VPN_PROXY_DOMAINS = [
-  'nordvpn.com', 'expressvpn.com', 'surfshark.com', 'protonvpn.com',
-  'windscribe.com', 'tunnelbear.com', 'cyberghostvpn.com', 'ipvanish.com',
-  'privateinternetaccess.com', 'mullvad.net', 'hide.me', 'hotspotshield.com',
-  'hidemyass.com', 'purevpn.com', 'strongvpn.com', 'torproject.org',
-  'tor.com', 'kproxy.com', 'proxysite.com', 'unblockvideos.com',
-  'croxyproxy.com', 'hideip.me', 'anonymouse.org', 'filterbypass.me',
-  'unblocksites.co', 'webproxy.to', 'vpngate.net',
-];
-
-const URL_SHORTENER_DOMAINS = [
-  'bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'ow.ly', 'is.gd',
-  'buff.ly', 'adf.ly', 'bl.ink', 'soo.gd', 'rebrand.ly',
-  's.id', 'v.gd', 'clck.ru', 'shorturl.at', 'cutt.ly',
-  'rb.gy', 'short.io', 'tiny.cc', 'lnkd.in',
-];
 
 // ─── Helper Functions ───────────────────────────────────────────
 

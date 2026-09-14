@@ -311,7 +311,7 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
         // @ts-ignore
         useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
         // @ts-ignore
-        webpreferences="contextIsolation=true, sandbox=false"
+        webpreferences="contextIsolation=true, sandbox=false, webSecurity=no"
         preload={(window as any).electronAPI?.getWebviewPreloadPathSync?.() || ''}
       />
     </div>

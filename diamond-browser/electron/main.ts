@@ -1,11 +1,12 @@
 /**
  * Diamond Browser — Electron Main Process
  * 
- * 4-Layer Defense-in-Depth Child Protection:
+ * 5-Layer Defense-in-Depth Child Protection:
  *   Layer 1: Cloudflare Family DNS-over-HTTPS (millions of domains)
  *   Layer 2: Firebase Dynamic Policy Sync (parent-managed rules)
  *   Layer 3: Local Safety Filter (keyword/domain/category fallback)
- *   Layer 4: In-Page DOM Content Scanner (RTA tags, title analysis)
+ *   Layer 4: In-Page DOM Content Scanner (MutationObserver + text redaction)
+ *   Layer 5: On-Device ML Image Analysis (nsfwjs + IntersectionObserver)
  */
 
 import { app, BrowserWindow, ipcMain, session, dialog, shell } from 'electron';
@@ -165,6 +166,19 @@ function setupNetworkInterceptors() {
 }
 
 function attachInterceptorsToSession(sess: Electron.Session) {
+  // Strip CSP to ensure ML model fetches and preload scripts are never blocked
+  sess.webRequest.onHeadersReceived((details, callback) => {
+    const responseHeaders = { ...details.responseHeaders };
+    
+    for (const header in responseHeaders) {
+      if (header.toLowerCase().startsWith('content-security-policy')) {
+        delete responseHeaders[header];
+      }
+    }
+
+    callback({ cancel: false, responseHeaders });
+  });
+
   // Global request filter
   sess.webRequest.onBeforeRequest(
     { urls: ['*://*/*'] },
@@ -420,10 +434,10 @@ function setupGuestWebContentsWatcher() {
         }
       });
 
-      // ── Layer 4: Listen for content-flagged messages from webview preload ──
+      // ── Layer 4+5: Listen for content-flagged and image-blocked messages from webview preload ──
       contents.on('ipc-message', (_event, channel, data) => {
         if (channel === 'content-flagged' && data) {
-          console.warn(`[DIAMOND SHIELD] Content flagged by DOM scanner: ${data.url} | ${data.reason}`);
+          console.warn(`[DIAMOND SHIELD L4] Content flagged by DOM scanner: ${data.url} | ${data.reason}`);
           notifySiteBlocked(
             data.url,
             data.category || 'Inappropriate Content',
@@ -432,6 +446,18 @@ function setupGuestWebContentsWatcher() {
           );
           const blockedUrl = getBlockedPageUrl(data.url, data.category, data.reason, 'content-scan');
           setImmediate(() => contents.loadURL(blockedUrl));
+        }
+
+        // Layer 5: Image was blocked by ML analysis (logged but page is NOT blocked —
+        // individual images are blurred in-page by the preload script)
+        if (channel === 'image-blocked' && data) {
+          console.warn(`[DIAMOND SHIELD L5] Image blocked by ML: ${data.imageUrl?.substring(0, 80)} | ${data.classification}`);
+          recordLocalAlert({
+            url: data.pageUrl || '',
+            category: 'Inappropriate Image',
+            reason: `ML model detected inappropriate image (${data.classification}) on page`,
+            severity: 'MEDIUM',
+          });
         }
       });
 
@@ -652,10 +678,11 @@ function setupIPCHandlers() {
     const policy = getPolicy();
     return {
       layers: {
-        dns: true,           // Cloudflare DoH always active
-        cloudSync: true,     // Firebase / Local policy sync active
-        localFilter: true,   // Local safety filter active
-        contentScanner: true, // DOM scanner active
+        dns: true,             // Layer 1: Cloudflare DoH always active
+        cloudSync: true,       // Layer 2: Firebase / Local policy sync active
+        localFilter: true,     // Layer 3: Local safety filter active
+        contentScanner: true,  // Layer 4: DOM text scanner + MutationObserver active
+        imageAnalysis: true,   // Layer 5: On-device ML image analysis active
       },
       mode: policy.mode,
       categories: {
