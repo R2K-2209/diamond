@@ -402,9 +402,6 @@ export async function initAdBlocker(): Promise<void> {
 
 function enableBlockingOnSessions() {
   if (!blocker) return;
-  try { blocker.enableBlockingInSession(session.defaultSession); } catch (e) {
-    console.warn('[Diamond AdBlock] Default session attach failed:', e);
-  }
   try {
     const ds = session.fromPartition('persist:diamond');
     blocker.enableBlockingInSession(ds);
@@ -415,7 +412,6 @@ function enableBlockingOnSessions() {
 
 function disableBlockingOnSessions() {
   if (!blocker) return;
-  try { blocker.disableBlockingInSession(session.defaultSession); } catch (e) {}
   try {
     const ds = session.fromPartition('persist:diamond');
     blocker.disableBlockingInSession(ds);
