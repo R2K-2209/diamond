@@ -60,6 +60,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getBlockedUrl: (targetUrl: string, category?: string, reason?: string, layer?: string): Promise<string> =>
     ipcRenderer.invoke('get-blocked-url', targetUrl, category, reason, layer),
 
+  // Config (Pairing)
+  getConfig: () => ipcRenderer.invoke('get-config'),
+  saveConfig: (config: any) => ipcRenderer.invoke('save-config', config),
+
   // Browser Menu Commands
   newWindow: (): Promise<void> => ipcRenderer.invoke('new-window'),
   closeWindow: (): Promise<void> => ipcRenderer.invoke('close-window'),

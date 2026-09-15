@@ -17,6 +17,8 @@ declare global {
       onPolicyChanged: (callback: (policy: any) => void) => () => void;
       getProtectionStatus: () => Promise<any>;
       getBlockedUrl: (targetUrl: string, category?: string, reason?: string, layer?: string) => Promise<string>;
+      getConfig: () => Promise<any>;
+      saveConfig: (config: any) => Promise<boolean>;
       newWindow: () => void;
       closeWindow: () => void;
       getHistory: () => Promise<any[]>;
@@ -49,6 +51,7 @@ export interface TabData {
   requestSent: boolean;
   showAdvanced: boolean;
   lastInternalUrl?: string;
+  navCounter?: number;
 }
 
 export interface ProtectionStatus {

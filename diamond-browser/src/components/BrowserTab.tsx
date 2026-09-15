@@ -34,6 +34,10 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
 
   const isInternalPage = isNewTab || isSettings || isHistory || isDownloads || isBookmarks;
 
+  // We ONLY pass the initial URL to src so it natively boots up correctly.
+  // By never changing this via React, we prevent infinite reload loops on SPAs.
+  const initialSrc = useRef(isInternalPage ? 'about:blank' : tab.currentUrl);
+
   useEffect(() => {
     const webview = webviewRef.current;
     if (!webview) return;
@@ -274,6 +278,7 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
         <div className="absolute inset-0 z-10">
           <NewTab onNavigate={(url) => {
             onUpdate(tab.id, { urlInput: url, currentUrl: url, isLoading: true, lastInternalUrl: 'diamond://newtab' });
+            try { webviewRef.current?.loadURL(url); } catch {}
           }} />
         </div>
       )}
@@ -286,6 +291,7 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
         <div className="absolute inset-0 z-10">
           <HistoryPage onNavigate={(url) => {
             onUpdate(tab.id, { urlInput: url, currentUrl: url, isLoading: true, lastInternalUrl: 'diamond://history' });
+            try { webviewRef.current?.loadURL(url); } catch {}
           }} />
         </div>
       )}
@@ -301,7 +307,7 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
       )}
       <webview
         ref={webviewRef}
-        src={isInternalPage ? 'about:blank' : tab.currentUrl}
+        src={initialSrc.current}
         className="w-full h-full border-none bg-white"
         style={{ display: isInternalPage ? 'none' : 'flex' }}
         // @ts-ignore

@@ -22,7 +22,7 @@ powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 5173 -ErrorActio
 echo Previous processes stopped successfully.
 echo.
 
-echo [2/3] Starting Diamond Dashboard (Next.js on http://localhost:3000)...
+echo [2/3] Starting Diamond Dashboard (Next.js on http://192.168.137.1:3000)...
 start "Diamond Dashboard (Port 3000)" cmd /k "cd /d \"%~dp0diamond-dashboard\" && npm run dev"
 
 echo Waiting 3 seconds for dashboard initialization...
@@ -35,7 +35,8 @@ echo.
 echo ========================================================
 echo   💎 Diamond Ecosystem restarted successfully!
 echo.
-echo   - Dashboard UI: http://localhost:3000
+echo   - Local Dashboard (Laptop): http://localhost:3000
+echo   - Mobile Dashboard (Phone): http://192.168.137.1:3000
 echo   - Browser App:  Running in Electron Window
 echo ========================================================
 echo.

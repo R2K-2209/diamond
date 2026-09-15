@@ -3,6 +3,7 @@ import { checkUrlSafety, enforceSafeSearch, type SafetyCheckResult } from './saf
 import { updatePolicyFromIPC } from './policySync';
 import type { TabData, BlockedState, ProtectionStatus } from './types';
 import { BrowserTab } from './components/BrowserTab';
+import { SetupScreen } from './components/SetupScreen';
 import './index.css';
 
 // ─── App Component ──────────────────────────────────────────────
@@ -28,19 +29,34 @@ function App() {
   const [showStatusPanel, setShowStatusPanel] = useState(false);
   const [showBrowserMenu, setShowBrowserMenu] = useState(false);
   
+  // Pairing State
+  const [isPaired, setIsPaired] = useState<boolean | null>(null);
+  
   // Bookmarks State
   const [globalBookmarks, setGlobalBookmarks] = useState<any[]>([]);
   const [showBookmarkDialog, setShowBookmarkDialog] = useState(false);
   const [bookmarkEditName, setBookmarkEditName] = useState('');
 
-  // Fetch initial bookmarks
+  // Fetch initial bookmarks and check pairing status
   useEffect(() => {
-    const loadBM = async () => {
-      if (window.electronAPI?.getBookmarks) {
-        setGlobalBookmarks(await window.electronAPI.getBookmarks());
+    const loadInit = async () => {
+      if (window.electronAPI) {
+        if (window.electronAPI.getBookmarks) {
+          setGlobalBookmarks(await window.electronAPI.getBookmarks());
+        }
+        if (window.electronAPI.getConfig) {
+          const config = await window.electronAPI.getConfig();
+          if (config && config.childId) {
+            setIsPaired(true);
+          } else {
+            setIsPaired(false);
+          }
+        } else {
+          setIsPaired(false);
+        }
       }
     };
-    loadBM();
+    loadInit();
   }, []);
   
   // Keep refs for all webviews to call imperative methods like goBack()
@@ -198,7 +214,7 @@ function App() {
             // Parent unblocked!
             const restored = tab.blockedInfo.url;
             try { tabRefs.current[tab.id]?.current?.loadURL(restored); } catch {}
-            return { ...tab, blockedInfo: null, currentUrl: restored, urlInput: restored, title: 'Reloading...' };
+            return { ...tab, blockedInfo: null, currentUrl: restored, urlInput: restored, title: 'Reloading...', navCounter: (tab.navCounter || 0) + 1 };
           }
         } else {
           const activeUrl = tab.currentUrl;
@@ -318,7 +334,8 @@ function App() {
     handleUpdateTab(activeTabId, {
       blockedInfo: null,
       currentUrl: finalized,
-      urlInput: finalized
+      urlInput: finalized,
+      navCounter: (activeTab.navCounter || 0) + 1
     });
     
     try { activeWebview?.loadURL(finalized); } catch {}
@@ -366,7 +383,7 @@ function App() {
       const check = checkUrlSafety(activeTab.blockedInfo.url);
       if (!check.blocked) {
         const unblocked = activeTab.blockedInfo.url;
-        handleUpdateTab(activeTabId, { blockedInfo: null, currentUrl: unblocked, urlInput: unblocked });
+        handleUpdateTab(activeTabId, { blockedInfo: null, currentUrl: unblocked, urlInput: unblocked, navCounter: (activeTab.navCounter || 0) + 1 });
         try { activeWebview?.loadURL(unblocked); } catch {}
       }
       return;
@@ -387,6 +404,15 @@ function App() {
   const activeLayers = protectionStatus
     ? Object.values(protectionStatus.layers).filter(Boolean).length
     : 4;
+
+  if (isPaired === null) {
+    // Still loading config...
+    return <div className="flex h-screen w-screen bg-[#101010]" />;
+  }
+
+  if (isPaired === false) {
+    return <SetupScreen onPaired={() => setIsPaired(true)} />;
+  }
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#101010] text-slate-100 select-none overflow-hidden font-sans">

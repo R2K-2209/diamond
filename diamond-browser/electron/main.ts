@@ -12,6 +12,8 @@
 import { app, BrowserWindow, ipcMain, session, dialog, shell } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
+import os from 'node:os';
 import { db } from '../src/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { checkUrlSafety, enforceSafeSearch } from '../src/safetyFilter';
@@ -61,6 +63,35 @@ let win: BrowserWindow | null;
 
 // Path to the webview preload script (Layer 4 DOM scanner)
 const webviewPreloadPath = path.join(__dirname, 'webviewPreload.js');
+
+// ─── Config Management (Pairing) ────────────────────────────────
+const configDir = path.join(os.homedir(), '.diamond');
+const configPath = path.join(configDir, 'config.json');
+
+export function getAppConfig() {
+  try {
+    if (fs.existsSync(configPath)) {
+      return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    }
+  } catch (err) {
+    console.error('[Diamond] Error reading config:', err);
+  }
+  return {};
+}
+
+export function saveAppConfig(config: any) {
+  try {
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
+    }
+    const existing = getAppConfig();
+    fs.writeFileSync(configPath, JSON.stringify({ ...existing, ...config }, null, 2));
+    return true;
+  } catch (err) {
+    console.error('[Diamond] Error saving config:', err);
+    return false;
+  }
+}
 
 // ─── Window Creation ────────────────────────────────────────────
 
@@ -705,6 +736,15 @@ function setupIPCHandlers() {
   ipcMain.on('get-webview-preload-path-sync', (event) => {
     event.returnValue = `file://${webviewPreloadPath.replace(/\\\\/g, '/')}`;
   });
+
+  // Pairing Config
+  ipcMain.handle('get-config', () => {
+    return getAppConfig();
+  });
+  
+  ipcMain.handle('save-config', (_event, config) => {
+    return saveAppConfig(config);
+  });
 }
 
 let lastBlockedUrl = '';
@@ -778,7 +818,10 @@ app.whenReady().then(async () => {
 
   // Layer 2: Also initialize Firebase policy sync (handles cloud if configured)
   console.log('[Diamond] Starting cloud policy sync...');
-  initPolicySync('test-child-user').catch((err) => {
+  const appConfig = getAppConfig();
+  const activeChildId = appConfig.childId || 'test-child-user'; // fallback to test-child-user if unassigned
+  
+  initPolicySync(activeChildId).catch((err) => {
     console.warn('[Diamond] Cloud Firestore sync skipped:', err?.message || err);
   });
 
