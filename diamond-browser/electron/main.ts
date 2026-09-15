@@ -7,6 +7,8 @@
  *   Layer 3: Local Safety Filter (keyword/domain/category fallback)
  *   Layer 4: In-Page DOM Content Scanner (MutationObserver + text redaction)
  *   Layer 5: On-Device ML Image Analysis (nsfwjs + IntersectionObserver)
+ * 
+ * + Brave-Style Ad & Tracker Blocker (EasyList + EasyPrivacy)
  */
 
 import { app, BrowserWindow, ipcMain, session, dialog, shell } from 'electron';
@@ -34,6 +36,7 @@ import {
   getLocalDownloads,
   clearLocalDownloads,
 } from './localPolicy';
+import { initAdBlocker, setupAdBlockerIPC, injectCosmeticFilters, isPopupAd, getAdBlockStatsForSync } from './adBlocker';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -128,6 +131,7 @@ function createWindow() {
   setupDownloadManager();         // Executable blocking
   setupGuestWebContentsWatcher(); // Layer 3 + 4 for webview
   setupIPCHandlers();             // IPC for renderer
+  setupAdBlockerIPC();            // Ad blocker IPC
   console.log('[Diamond] All IPC handlers registered successfully.');
 
   if (VITE_DEV_SERVER_URL) {
@@ -383,6 +387,11 @@ function setupGuestWebContentsWatcher() {
           return { action: 'deny' };
         }
 
+        // Ad Blocker: Check if popup is an ad
+        if (isPopupAd(targetUrl)) {
+          return { action: 'deny' };
+        }
+
         // Safe real link (target="_blank" etc) - navigate the current webview to it
         if (contents.getType() === 'webview') {
           setImmediate(() => contents.loadURL(targetUrl));
@@ -395,6 +404,9 @@ function setupGuestWebContentsWatcher() {
     });
 
     if (contents.getType() === 'webview') {
+      // ── Ad Blocker: Cosmetic filtering + YouTube auto-skip ──
+      injectCosmeticFilters(contents);
+
       // ── Block DevTools in webview (anti-bypass) ──
       contents.on('devtools-opened', () => {
         contents.closeDevTools();
@@ -831,6 +843,27 @@ app.whenReady().then(async () => {
       win.webContents.send('policy-changed', policy);
     }
   });
+
+  // Initialize Diamond Ad Blocker v3 (7 filter lists + fingerprint + WebRTC protection)
+  initAdBlocker().catch((err) => {
+    console.warn('[Diamond] Ad blocker init failed (non-critical):', err?.message || err);
+  });
+
+  // Sync ad block stats to Firestore every 10 minutes (for parent dashboard)
+  setInterval(async () => {
+    try {
+      const stats = getAdBlockStatsForSync();
+      if (stats.totalBlocked > 0) {
+        await addDoc(collection(db, 'adblock-stats'), {
+          childId: appConfig.childId || 'test-child-user',
+          ...stats,
+          timestamp: serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      // Non-critical — dashboard sync failure should not break the browser
+    }
+  }, 10 * 60 * 1000); // Every 10 minutes
 
   // Create the main window
   createWindow();
