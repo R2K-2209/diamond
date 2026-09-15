@@ -98,9 +98,9 @@ function LoginContent() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Verify your email</h2>
+          <h2 className="text-2xl font-bold text-dash-text mb-2">Verify your email</h2>
           <p className="text-gray-400 mb-6">
-            We sent a verification link to <span className="text-white font-medium">{user.email}</span>. 
+            We sent a verification link to <span className="text-dash-text font-medium">{user.email}</span>. 
             Please check your inbox and click the link to activate your account.
           </p>
           
@@ -119,7 +119,7 @@ function LoginContent() {
           <div className="space-y-3">
             <button
               onClick={() => window.location.reload()}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl transition-colors shadow-lg shadow-blue-500/20"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-dash-text font-medium py-3 rounded-xl transition-colors shadow-lg shadow-blue-500/20"
             >
               I have verified my email
             </button>
@@ -151,11 +151,11 @@ function LoginContent() {
       <div className="max-w-md w-full bg-gray-900/80 backdrop-blur-xl border border-gray-800 rounded-3xl p-8 shadow-2xl relative z-10">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 shadow-lg shadow-blue-500/30 mb-4">
-            <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-6 h-6 text-dash-text" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Parent Dashboard</h1>
+          <h1 className="text-3xl font-bold text-dash-text tracking-tight">Parent Dashboard</h1>
           <p className="text-gray-400 mt-2 text-sm">Securely manage your children's browsing</p>
         </div>
 
@@ -173,7 +173,7 @@ function LoginContent() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 text-dash-text placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               placeholder="parent@example.com"
             />
           </div>
@@ -185,7 +185,7 @@ function LoginContent() {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
-              className="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 text-dash-text placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               placeholder="••••••••"
             />
           </div>
@@ -193,7 +193,7 @@ function LoginContent() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl transition-all shadow-lg shadow-blue-500/20 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-dash-text font-medium py-3 rounded-xl transition-all shadow-lg shadow-blue-500/20 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Please wait..." : (isLogin ? "Sign In" : "Create Account")}
           </button>
@@ -209,7 +209,7 @@ function LoginContent() {
           <button
             onClick={handleGoogleLogin}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-3 bg-gray-800 hover:bg-gray-700 text-white font-medium py-3 rounded-xl transition-colors disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-3 bg-gray-800 hover:bg-gray-700 text-dash-text font-medium py-3 rounded-xl transition-colors disabled:opacity-50"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />

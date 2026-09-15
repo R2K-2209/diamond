@@ -69,7 +69,7 @@ function PairContent() {
         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
         
         <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-primary/20">
-          <span className="text-white text-2xl">📱</span>
+          <span className="text-dash-text text-2xl">📱</span>
         </div>
         
         <h1 className="text-2xl font-bold text-text mb-2">Connect Device</h1>
@@ -112,7 +112,7 @@ function PairContent() {
             <button
               onClick={handlePair}
               disabled={isPairing || children.length === 0}
-              className="w-full py-3.5 bg-primary hover:bg-primary-hover text-white font-medium rounded-xl transition-colors shadow-lg shadow-primary/20 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full py-3.5 bg-primary hover:bg-primary-hover text-dash-text font-medium rounded-xl transition-colors shadow-lg shadow-primary/20 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isPairing ? (
                 <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Connecting...</>

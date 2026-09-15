@@ -37,43 +37,74 @@ const CATEGORY_TOGGLES = [
     key: "blockAdultContent",
     label: "Adult Content",
     desc: "Block explicit, pornographic, and adult-rated websites",
-    icon: "🔞",
-    critical: true,
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+      </svg>
+    ),
+    dotColor: "bg-rose-500",
+    iconColor: "text-rose-500",
   },
   {
     key: "blockGambling",
     label: "Gambling & Betting",
     desc: "Block casino, sports betting, and online gambling sites",
-    icon: "🎰",
-    critical: true,
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+    dotColor: "bg-rose-500",
+    iconColor: "text-amber-500",
   },
   {
     key: "blockSocialMedia",
     label: "Social Media",
     desc: "Block TikTok, Instagram, Snapchat, Twitter, Reddit, Discord",
-    icon: "📱",
-    critical: false,
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+      </svg>
+    ),
+    dotColor: "bg-transparent",
+    iconColor: "text-blue-500",
   },
   {
     key: "blockGaming",
     label: "Gaming Platforms",
     desc: "Block Steam, Epic Games, Twitch, Roblox, and more",
-    icon: "🎮",
-    critical: false,
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+    dotColor: "bg-transparent",
+    iconColor: "text-purple-500",
   },
   {
     key: "blockVpnProxy",
     label: "VPN & Proxy Sites",
     desc: "Prevent bypass attempts via VPN downloads and web proxies",
-    icon: "🛡️",
-    critical: true,
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+      </svg>
+    ),
+    dotColor: "bg-rose-500",
+    iconColor: "text-emerald-500",
   },
   {
     key: "blockUrlShorteners",
     label: "URL Shorteners",
     desc: "Block bit.ly, tinyurl, and other link shorteners that hide real URLs",
-    icon: "🔗",
-    critical: false,
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+      </svg>
+    ),
+    dotColor: "bg-transparent",
+    iconColor: "text-gray-400",
   },
 ];
 
@@ -82,39 +113,28 @@ const MODE_OPTIONS = [
     value: "moderate",
     label: "Moderate",
     desc: "Open web with all filters active. Child can browse freely within safety rules.",
-    color: "border-primary/30 bg-primary/5",
-    activeColor: "border-primary bg-primary/10 ring-2 ring-primary/20",
   },
   {
     value: "strict",
     label: "Strict",
-    desc: "Maximum sensitivity. All categories blocked, SafeSearch hardened.",
-    color: "border-warning/30 bg-warning/5",
-    activeColor: "border-warning bg-warning/10 ring-2 ring-warning/20",
+    desc: "Maximum sensitivity. All categories blocked. SafeSearch hardened.",
   },
   {
     value: "allowlist_only",
     label: "Walled Garden",
     desc: "Only parent-approved educational sites can be accessed. Everything else blocked.",
-    color: "border-danger/30 bg-danger/5",
-    activeColor: "border-danger bg-danger/10 ring-2 ring-danger/20",
   },
 ];
 
 export default function PolicyControls() {
   const [policy, setPolicy] = useState<ContentPolicy>(DEFAULT_POLICY);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [newBlockedDomain, setNewBlockedDomain] = useState("");
   const [newAllowedDomain, setNewAllowedDomain] = useState("");
-  const [saveMessage, setSaveMessage] = useState("");
-  const [cloudFirestoreDisabled, setCloudFirestoreDisabled] = useState(false);
 
   const policyDocRef = doc(db, "policies", "test-child-user");
 
-  // Load from local API and listen to Firestore
   useEffect(() => {
-    // 1. Fetch from local policy API immediately
     fetch("/api/policy")
       .then((res) => res.json())
       .then((data) => {
@@ -125,58 +145,30 @@ export default function PolicyControls() {
       .catch((err) => console.warn("Could not fetch local policy:", err))
       .finally(() => setIsLoaded(true));
 
-    // 2. Also listen for Firestore real-time updates if available
-    const unsub = onSnapshot(
-      policyDocRef,
-      (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.data() as Partial<ContentPolicy>;
-          setPolicy((prev) => ({ ...prev, ...data }));
-        }
-        setIsLoaded(true);
-      },
-      (error) => {
-        console.warn("[Firestore] Cloud Firestore not active or permission denied. Using local engine.", error.message);
-        setCloudFirestoreDisabled(true);
-        setIsLoaded(true);
+    const unsub = onSnapshot(policyDocRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data() as Partial<ContentPolicy>;
+        setPolicy((prev) => ({ ...prev, ...data }));
       }
-    );
+      setIsLoaded(true);
+    }, () => {
+      setIsLoaded(true);
+    });
     return unsub;
   }, []);
 
-  // Save policy to both Local API (instant <5ms) and Firestore (cloud)
   const savePolicy = async (updates: Partial<ContentPolicy>) => {
-    setIsSaving(true);
     try {
-      // 1. Save to local API (guarantees local sync to Diamond Browser immediately)
-      const res = await fetch("/api/policy", {
+      fetch("/api/policy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSaveMessage("Saved! Applied to Diamond Browser immediately.");
-      }
+      }).catch(() => {});
 
-      // 2. Also attempt Firestore cloud save
-      setDoc(
-        policyDocRef,
-        {
-          ...updates,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      ).catch(() => {
-        setCloudFirestoreDisabled(true);
-      });
-
-      setTimeout(() => setSaveMessage(""), 3500);
+      setDoc(policyDocRef, { ...updates, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
     } catch (error) {
       console.error("Error saving policy:", error);
-      setSaveMessage("Error saving. Please try again.");
     }
-    setIsSaving(false);
   };
 
   const toggleCategory = (key: string) => {
@@ -193,266 +185,185 @@ export default function PolicyControls() {
   const addBlockedDomain = () => {
     const raw = newBlockedDomain.trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, "").replace(/\/.*$/, "");
     if (!raw) return;
-
-    // If user enters "reddit", block both "reddit" and "reddit.com"
-    const candidates = [raw];
-    if (!raw.includes(".")) {
-      candidates.push(`${raw}.com`);
-    }
-
-    const newDomains = candidates.filter((d) => !policy.customBlockedDomains.includes(d));
-    if (newDomains.length === 0) return;
-
-    const updated = [...policy.customBlockedDomains, ...newDomains];
+    const updated = [...policy.customBlockedDomains, raw];
     setPolicy((prev) => ({ ...prev, customBlockedDomains: updated }));
     savePolicy({ customBlockedDomains: updated });
     setNewBlockedDomain("");
   };
 
-  const removeBlockedDomain = (domain: string) => {
-    const updated = policy.customBlockedDomains.filter((d) => d !== domain);
-    setPolicy((prev) => ({ ...prev, customBlockedDomains: updated }));
-    savePolicy({ customBlockedDomains: updated });
-  };
-
   const addAllowedDomain = () => {
     const raw = newAllowedDomain.trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, "").replace(/\/.*$/, "");
     if (!raw) return;
-
-    const candidates = [raw];
-    if (!raw.includes(".")) {
-      candidates.push(`${raw}.com`);
-    }
-
-    const newDomains = candidates.filter((d) => !policy.customAllowedDomains.includes(d));
-    if (newDomains.length === 0) return;
-
-    const updated = [...policy.customAllowedDomains, ...newDomains];
+    const updated = [...policy.customAllowedDomains, raw];
     setPolicy((prev) => ({ ...prev, customAllowedDomains: updated }));
     savePolicy({ customAllowedDomains: updated });
     setNewAllowedDomain("");
   };
 
-  const removeAllowedDomain = (domain: string) => {
-    const updated = policy.customAllowedDomains.filter((d) => d !== domain);
-    setPolicy((prev) => ({ ...prev, customAllowedDomains: updated }));
-    savePolicy({ customAllowedDomains: updated });
-  };
-
-  if (!isLoaded) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
+  if (!isLoaded) return <div className="animate-pulse flex space-x-4"><div className="flex-1 space-y-6 py-1"><div className="h-2 bg-[#1e222b] rounded"></div></div></div>;
 
   return (
-    <div className="max-w-3xl space-y-8">
-      {/* Engine Status Banner */}
-      <div className="flex items-center justify-between p-3.5 bg-surface-2 border border-border rounded-xl text-xs">
-        <div className="flex items-center gap-2.5">
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-success"></span>
-          </span>
-          <span className="font-medium text-text">Direct Engine Sync: <span className="text-success font-semibold">Active & Connected</span></span>
-        </div>
-        <span className="text-[11px] text-text-muted">Instant local policy updates to Diamond Browser</span>
-      </div>
-
-      {cloudFirestoreDisabled && (
-        <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-200/90 leading-relaxed">
-          <span className="font-bold text-amber-300">💡 Local protection is active:</span> Diamond Browser and Parental Controls are communicating directly on this machine. Cloud Firestore is not enabled on your Firebase project <code className="bg-black/30 px-1 py-0.5 rounded text-[10px] text-amber-100">browser-3ae3d</code>. If you ever need to manage rules from a remote computer or phone, click{' '}
-          <a
-            href="https://console.firebase.google.com/u/0/project/browser-3ae3d/firestore"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-amber-300 underline font-semibold hover:text-white"
-          >
-            Create Firestore Database
-          </a>{' '}
-          in the Firebase Console.
-        </div>
-      )}
-
-      {/* Save Notification */}
-      {saveMessage && (
-        <div className="fixed top-4 right-4 z-50 px-4 py-2.5 bg-success/10 text-success border border-success/20 rounded-xl text-xs font-medium shadow-lg backdrop-blur-sm animate-pulse">
-          {saveMessage}
-        </div>
-      )}
-
-      {/* ═══ Browsing Mode ═══ */}
+    <div className="w-full max-w-[1000px] space-y-10">
+      
+      {/* ═══ SECURITY LEVEL ═══ */}
       <section>
-        <h2 className="text-sm font-bold text-text mb-1">Browsing Mode</h2>
-        <p className="text-xs text-text-muted mb-4">Choose how restrictive the browser should be</p>
-        <div className="grid grid-cols-3 gap-3">
-          {MODE_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => changeMode(opt.value as ContentPolicy["mode"])}
-              className={`p-4 rounded-xl border text-left transition-all ${
-                policy.mode === opt.value ? opt.activeColor : opt.color + " hover:border-border-light"
-              }`}
-            >
-              <p className="text-sm font-bold text-text mb-1">{opt.label}</p>
-              <p className="text-[11px] text-text-muted leading-relaxed">{opt.desc}</p>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* ═══ Category Toggles ═══ */}
-      <section>
-        <h2 className="text-sm font-bold text-text mb-1">Content Categories</h2>
-        <p className="text-xs text-text-muted mb-4">Toggle which types of content to block</p>
-        <div className="space-y-2">
-          {CATEGORY_TOGGLES.map((cat) => {
-            const isOn = policy[cat.key as keyof ContentPolicy] as boolean;
+        <h2 className="text-[12px] font-extrabold text-dash-text-muted uppercase tracking-wider mb-5">Security Level</h2>
+        <div className="grid grid-cols-3 gap-5">
+          {MODE_OPTIONS.map((opt) => {
+            const isActive = policy.mode === opt.value;
             return (
               <div
-                key={cat.key}
-                className="flex items-center justify-between p-3.5 bg-surface rounded-xl border border-border hover:border-border-light transition-colors"
+                key={opt.value}
+                onClick={() => changeMode(opt.value as ContentPolicy["mode"])}
+                className={`p-5 rounded-2xl border transition-all cursor-pointer flex flex-col gap-3 ${
+                  isActive 
+                    ? "bg-dash-card-hover border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.1)]" 
+                    : "bg-dash-sidebar border-dash-border hover:border-dash-border-light"
+                }`}
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-lg">{cat.icon}</span>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-text">{cat.label}</p>
-                      {cat.critical && (
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-danger/10 text-danger border border-danger/20">
-                          CRITICAL
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-text-muted mt-0.5">{cat.desc}</p>
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${isActive ? "border-blue-500" : "border-[#5d6776]"}`}>
+                    {isActive && <div className="w-2 h-2 rounded-full bg-blue-500"></div>}
                   </div>
+                  <h3 className="text-[14px] font-bold text-dash-text">{opt.label}</h3>
                 </div>
-                <button
-                  onClick={() => toggleCategory(cat.key)}
-                  className={`relative w-11 h-6 rounded-full transition-all duration-200 ${
-                    isOn ? "bg-success" : "bg-surface-3 border border-border"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-200 ${
-                      isOn ? "left-[22px]" : "left-0.5"
-                    }`}
-                  />
-                </button>
+                <p className="text-[12px] text-dash-text-faded leading-relaxed">
+                  {opt.desc}
+                </p>
               </div>
             );
           })}
         </div>
       </section>
 
-      {/* ═══ Custom Blocked Domains ═══ */}
+      {/* ═══ CATEGORY FILTERS ═══ */}
       <section>
-        <h2 className="text-sm font-bold text-text mb-1">Custom Blocked Domains</h2>
-        <p className="text-xs text-text-muted mb-3">Add specific websites you want to block</p>
-
-        <div className="flex gap-2 mb-3">
-          <input
-            type="text"
-            value={newBlockedDomain}
-            onChange={(e) => setNewBlockedDomain(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addBlockedDomain()}
-            placeholder="e.g. reddit.com"
-            className="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
-          />
-          <button
-            onClick={addBlockedDomain}
-            disabled={!newBlockedDomain.trim()}
-            className="px-4 py-2 rounded-lg bg-danger/10 text-danger border border-danger/20 text-sm font-medium hover:bg-danger/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-          >
-            Block
-          </button>
-        </div>
-
-        {policy.customBlockedDomains.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {policy.customBlockedDomains.map((domain) => (
-              <span
-                key={domain}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-danger/5 text-danger rounded-lg border border-danger/15 text-xs font-mono"
-              >
-                {domain}
-                <button
-                  onClick={() => removeBlockedDomain(domain)}
-                  className="hover:text-white transition-colors"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-[12px] font-extrabold text-dash-text-muted uppercase tracking-wider">Category Filters</h2>
+          <div className="px-3 py-1 bg-dash-card-hover border border-dash-border-light rounded-full text-[11px] font-bold text-dash-text-muted">
+            {CATEGORY_TOGGLES.filter(cat => policy[cat.key as keyof ContentPolicy]).length} Active Rules
           </div>
-        )}
+        </div>
+        <div className="grid grid-cols-3 gap-5">
+          {CATEGORY_TOGGLES.map((cat) => {
+            const isOn = policy[cat.key as keyof ContentPolicy] as boolean;
+            return (
+              <div
+                key={cat.key}
+                className="p-5 bg-dash-sidebar border border-dash-border rounded-2xl flex flex-col gap-4"
+              >
+                <div className="flex items-center justify-between">
+                  <div className={`w-8 h-8 rounded-full bg-dash-card-hover flex items-center justify-center ${cat.iconColor}`}>
+                    {cat.icon}
+                  </div>
+                  {/* Toggle Switch */}
+                  <button
+                    onClick={() => toggleCategory(cat.key)}
+                    className={`relative w-11 h-6 rounded-full transition-all duration-200 ${
+                      isOn ? "bg-blue-500" : "bg-dash-card-hover border border-dash-border-light"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-1 w-4 h-4 rounded-full transition-all duration-200 shadow-sm ${
+                        isOn ? "left-[22px] bg-white" : "left-1 bg-dash-text-muted"
+                      }`}
+                    />
+                  </button>
+                </div>
+                
+                <div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <h3 className="text-[14px] font-bold text-dash-text">{cat.label}</h3>
+                    {cat.dotColor !== "bg-transparent" && (
+                      <div className={`w-1.5 h-1.5 rounded-full ${cat.dotColor}`}></div>
+                    )}
+                  </div>
+                  <p className="text-[12px] text-dash-text-faded leading-relaxed line-clamp-2">
+                    {cat.desc}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </section>
 
-      {/* ═══ Custom Allowed Domains ═══ */}
+      {/* ═══ CUSTOM OVERRIDES ═══ */}
       <section>
-        <h2 className="text-sm font-bold text-text mb-1">Custom Allowed Domains</h2>
-        <p className="text-xs text-text-muted mb-3">
-          Add websites that should always be accessible (bypasses all filters except adult content)
-        </p>
-
-        <div className="flex gap-2 mb-3">
-          <input
-            type="text"
-            value={newAllowedDomain}
-            onChange={(e) => setNewAllowedDomain(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addAllowedDomain()}
-            placeholder="e.g. scratch.mit.edu"
-            className="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text placeholder-text-muted focus:outline-none focus:border-success/50 focus:ring-1 focus:ring-success/30"
-          />
-          <button
-            onClick={addAllowedDomain}
-            disabled={!newAllowedDomain.trim()}
-            className="px-4 py-2 rounded-lg bg-success/10 text-success border border-success/20 text-sm font-medium hover:bg-success/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-          >
-            Allow
-          </button>
-        </div>
-
-        {policy.customAllowedDomains.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {policy.customAllowedDomains.map((domain) => (
-              <span
-                key={domain}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-success/5 text-success rounded-lg border border-success/15 text-xs font-mono"
-              >
-                {domain}
-                <button
-                  onClick={() => removeAllowedDomain(domain)}
-                  className="hover:text-white transition-colors"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* ═══ Protection Summary ═══ */}
-      <section className="bg-surface-2 rounded-xl border border-border p-5">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-text-muted mb-3">Active Protection Layers</h3>
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { label: "Cloudflare Family DNS", status: "Always Active", color: "text-success" },
-            { label: "Firebase Policy Sync", status: "Connected", color: "text-success" },
-            { label: "Local Safety Filter", status: "Active", color: "text-success" },
-            { label: "Page Content Scanner", status: "Active", color: "text-success" },
-          ].map((layer) => (
-            <div key={layer.label} className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-success"></span>
-              <span className="text-xs text-text-secondary">{layer.label}</span>
-              <span className={`text-[10px] font-medium ${layer.color} ml-auto`}>{layer.status}</span>
+        <h2 className="text-[12px] font-extrabold text-dash-text-muted uppercase tracking-wider mb-5">Custom Overrides</h2>
+        <div className="grid grid-cols-2 gap-5">
+          
+          {/* Always Block */}
+          <div className="bg-dash-sidebar border border-dash-border rounded-2xl p-5 flex flex-col">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-2 h-2 rounded-full bg-rose-500"></div>
+                <h3 className="text-[14px] font-bold text-dash-text">Always Block</h3>
+              </div>
+              <span className="text-[11px] font-bold text-dash-text-faded">{policy.customBlockedDomains.length} domains</span>
             </div>
-          ))}
+            
+            <div className="relative mb-3 flex items-center">
+              <input
+                type="text"
+                value={newBlockedDomain}
+                onChange={(e) => setNewBlockedDomain(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addBlockedDomain()}
+                placeholder="e.g. reddit.com"
+                className="w-full bg-dash-card border border-dash-border-light rounded-xl py-2.5 pl-4 pr-24 text-[13px] text-dash-text placeholder-dash-text-faded focus:outline-none focus:border-rose-500/50 transition-colors"
+              />
+              <button
+                onClick={addBlockedDomain}
+                className="absolute right-1.5 top-1.5 bottom-1.5 px-4 bg-[#e11d48] hover:bg-[#be123c] text-dash-text text-[12px] font-bold rounded-lg transition-colors"
+              >
+                Block
+              </button>
+            </div>
+            
+            <p className="text-[11px] text-dash-text-faded italic text-center mt-2">
+              {policy.customBlockedDomains.length === 0 
+                ? "No domains explicitly blocked." 
+                : policy.customBlockedDomains.join(", ")}
+            </p>
+          </div>
+
+          {/* Always Allow */}
+          <div className="bg-dash-sidebar border border-dash-border rounded-2xl p-5 flex flex-col">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                <h3 className="text-[14px] font-bold text-dash-text">Always Allow</h3>
+              </div>
+              <span className="text-[11px] font-bold text-dash-text-faded">{policy.customAllowedDomains.length} domains</span>
+            </div>
+            
+            <div className="relative mb-3 flex items-center">
+              <input
+                type="text"
+                value={newAllowedDomain}
+                onChange={(e) => setNewAllowedDomain(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addAllowedDomain()}
+                placeholder="e.g. khanacademy.org"
+                className="w-full bg-dash-card border border-dash-border-light rounded-xl py-2.5 pl-4 pr-24 text-[13px] text-dash-text placeholder-dash-text-faded focus:outline-none focus:border-emerald-500/50 transition-colors"
+              />
+              <button
+                onClick={addAllowedDomain}
+                className="absolute right-1.5 top-1.5 bottom-1.5 px-4 bg-[#059669] hover:bg-[#047857] text-dash-text text-[12px] font-bold rounded-lg transition-colors"
+              >
+                Allow
+              </button>
+            </div>
+            
+            <p className="text-[11px] text-dash-text-faded italic text-center mt-2">
+              {policy.customAllowedDomains.length === 0 
+                ? "No domains explicitly allowed." 
+                : policy.customAllowedDomains.join(", ")}
+            </p>
+          </div>
+
         </div>
       </section>
+
     </div>
   );
 }

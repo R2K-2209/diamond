@@ -96,7 +96,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-2xl max-w-sm text-center">
             <h2 className="text-red-400 font-bold mb-2">Authentication Error</h2>
             <p className="text-gray-300 text-sm">{authError}</p>
-            <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm">
+            <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-dash-text rounded-lg text-sm">
               Retry
             </button>
           </div>

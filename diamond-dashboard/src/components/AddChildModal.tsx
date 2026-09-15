@@ -20,66 +20,72 @@ export default function AddChildModal({
   setNewChildAge
 }: AddChildModalProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-[#181818] border border-[#2b2b2b] rounded-3xl p-8 w-full max-w-md shadow-2xl relative overflow-hidden">
-        {/* Decorative Background */}
-        <div className="absolute -top-20 -right-20 w-40 h-40 bg-blue-600/20 rounded-full blur-[80px] pointer-events-none" />
-        <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-indigo-600/20 rounded-full blur-[80px] pointer-events-none" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+      {/* Modal Container */}
+      <div className="bg-dash-card border border-dash-border-light rounded-3xl w-full max-w-md shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
-        <div className="relative z-10 text-center mb-6">
-          <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/20 text-3xl">
-            👦👧
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-1 tracking-tight">Create Profile</h2>
-          <p className="text-gray-400 text-sm">Set up a secure browsing space for your child</p>
-        </div>
+        {/* Top Decorative Gradient */}
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-indigo-500"></div>
         
-        <form onSubmit={onSubmit} className="relative z-10 space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5 ml-1">First Name</label>
-            <input
-              type="text"
-              placeholder="e.g. Alex"
-              value={newChildName}
-              onChange={(e) => setNewChildName(e.target.value)}
-              className="w-full bg-[#111111] border border-[#3a3a3a] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-              required
-            />
+        <div className="p-8">
+          <div className="mb-8">
+            <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mb-6 shadow-inner">
+              <svg className="w-7 h-7 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-dash-text tracking-tight">Create Profile</h2>
+            <p className="text-sm text-dash-text-muted mt-1.5">Set up a secure, managed browsing space for your child on Diamond Browser.</p>
           </div>
           
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5 ml-1">Age</label>
-            <input
-              type="number"
-              min="1"
-              max="17"
-              placeholder="e.g. 12"
-              value={newChildAge}
-              onChange={(e) => setNewChildAge(e.target.value)}
-              className="w-full bg-[#111111] border border-[#3a3a3a] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-              required
-            />
-          </div>
+          <form onSubmit={onSubmit} className="space-y-5">
+            <div>
+              <label className="block text-[11px] font-bold text-dash-text-muted uppercase tracking-widest mb-2">First Name</label>
+              <input
+                type="text"
+                placeholder="e.g. Alex"
+                value={newChildName}
+                onChange={(e) => setNewChildName(e.target.value)}
+                className="w-full bg-dash-bg border border-dash-border-light rounded-xl px-4 py-3.5 text-sm text-dash-text placeholder-dash-text-faded focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all shadow-inner"
+                required
+                autoFocus
+              />
+            </div>
+            
+            <div>
+              <label className="block text-[11px] font-bold text-dash-text-muted uppercase tracking-widest mb-2">Age</label>
+              <input
+                type="number"
+                min="1"
+                max="17"
+                placeholder="e.g. 12"
+                value={newChildAge}
+                onChange={(e) => setNewChildAge(e.target.value)}
+                className="w-full bg-dash-bg border border-dash-border-light rounded-xl px-4 py-3.5 text-sm text-dash-text placeholder-dash-text-faded focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all shadow-inner"
+                required
+              />
+            </div>
 
-          <div className="flex justify-end gap-3 pt-6">
-            <button 
-              type="button" 
-              onClick={onClose} 
-              disabled={isAddingChild}
-              className="px-5 py-2.5 text-gray-400 hover:text-white bg-[#222222] hover:bg-[#2b2b2b] rounded-xl font-medium transition-colors disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button 
-              type="submit" 
-              disabled={isAddingChild}
-              className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {isAddingChild && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-              {isAddingChild ? 'Creating...' : 'Create Profile'}
-            </button>
-          </div>
-        </form>
+            <div className="flex gap-3 pt-4">
+              <button 
+                type="button" 
+                onClick={onClose} 
+                disabled={isAddingChild}
+                className="w-1/3 py-3 text-sm font-bold text-dash-text-muted hover:text-dash-text bg-dash-bg hover:bg-dash-border-light border border-dash-border-light rounded-xl transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                disabled={isAddingChild}
+                className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-dash-text text-sm font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border border-blue-400/20"
+              >
+                {isAddingChild && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                {isAddingChild ? 'Creating...' : 'Create Profile'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

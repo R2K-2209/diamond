@@ -1,5 +1,7 @@
 "use client";
 
+import React from "react";
+
 export interface ChildProfile {
   id: string;
   name: string;
@@ -10,189 +12,180 @@ export interface ChildProfile {
 interface SidebarProps {
   activeTab: string;
   onTabChange: (tab: any) => void;
-  pendingRequests: number;
+  pendingRequests?: number;
   childrenProfiles: ChildProfile[];
   activeChildId: string | null;
   onSelectChild: (childId: string) => void;
   onAddChild: () => void;
-  onPairDevice: (childId: string) => void;
-  onDeleteChild: (childId: string) => void;
+  onPairDevice?: (childId: string) => void;
+  onDeleteChild?: (childId: string) => void;
 }
 
 const NAV_ITEMS = [
   {
-    key: "activity",
-    label: "Activity",
+    key: "dashboard",
+    label: "Dashboard",
     icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+      </svg>
+    ),
+  },
+  {
+    key: "usage_activity",
+    label: "Usage Activity",
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+    ),
+  },
+  {
+    key: "controls", // Maps to App Controls
+    label: "App Controls",
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  },
+  {
+    key: "screen_time",
+    label: "Screen Time",
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
   },
   {
-    key: "alerts",
-    label: "Alerts",
+    key: "reports",
+    label: "Reports",
     icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
     ),
   },
   {
-    key: "requests",
-    label: "Requests",
+    key: "settings",
+    label: "Settings",
     icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-      </svg>
-    ),
-  },
-  {
-    key: "controls",
-    label: "Controls",
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
     ),
   },
+  {
+    key: "help",
+    label: "Help",
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  },
 ];
 
-export default function Sidebar({ 
-  activeTab, 
-  onTabChange, 
-  pendingRequests,
+export default function Sidebar({
+  activeTab,
+  onTabChange,
   childrenProfiles,
   activeChildId,
   onSelectChild,
   onAddChild,
   onPairDevice,
-  onDeleteChild
+  onDeleteChild,
 }: SidebarProps) {
-  const activeChild = childrenProfiles.find(c => c.id === activeChildId);
   return (
-    <div className="w-64 bg-surface border-r border-border flex flex-col shrink-0">
-      {/* Logo */}
-      <div className="h-16 flex items-center px-6 border-b border-border">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
-            <span className="text-white font-black text-sm">💎</span>
-          </div>
-          <div>
-            <h1 className="text-sm font-bold text-text tracking-tight">Diamond</h1>
-            <p className="text-[10px] text-text-muted font-medium">Parent Dashboard</p>
-          </div>
+    <div className="flex flex-col h-full bg-dash-sidebar border-r border-dash-border">
+      {/* Brand / Logo */}
+      <div className="flex items-center gap-3 p-6 pb-8">
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-blue-500 shadow-lg shadow-blue-500/20 shrink-0"></div>
+        <div className="flex flex-col">
+          <span className="text-[14px] font-bold text-dash-text tracking-wide leading-tight">KIDSGUARD /</span>
+          <span className="text-[11px] font-semibold text-dash-text-muted tracking-[0.2em] leading-tight">DASHBOARD</span>
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 py-4 px-3 space-y-1">
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.key}
-            onClick={() => onTabChange(item.key)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
-              activeTab === item.key
-                ? "bg-primary/10 text-primary border border-primary/20 shadow-sm"
-                : "text-text-secondary hover:bg-surface-2 hover:text-text border border-transparent"
-            }`}
-          >
-            <span className={activeTab === item.key ? "text-primary" : "text-text-muted"}>
-              {item.icon}
-            </span>
-            {item.label}
-            {item.key === "requests" && pendingRequests > 0 && (
-              <span className="ml-auto inline-flex items-center justify-center w-5 h-5 rounded-full bg-danger text-white text-[10px] font-bold animate-pulse">
-                {pendingRequests}
-              </span>
-            )}
-          </button>
-        ))}
-      </nav>
-
-      {/* Child Status */}
-      <div className="p-4 border-t border-border flex flex-col gap-2 overflow-y-auto max-h-[40vh]">
-        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Children</div>
-        
-        {childrenProfiles.length === 0 ? (
-          <div className="text-xs text-gray-400 text-center py-2">No children added yet.</div>
-        ) : (
-          childrenProfiles.map((child) => (
-            <div 
-              key={child.id}
-              onClick={() => onSelectChild(child.id)}
-              className={`rounded-xl p-3 border transition-all cursor-pointer group ${
-                activeChildId === child.id 
-                  ? "bg-surface-2 border-primary/50 shadow-sm shadow-primary/10" 
-                  : "bg-surface border-border hover:border-gray-700"
+      {/* Navigation Menu */}
+      <nav className="flex-1 px-4 space-y-1.5 overflow-y-auto custom-scrollbar">
+        {NAV_ITEMS.map((item) => {
+          const isActive = activeTab === item.key;
+          return (
+            <button
+              key={item.key}
+              onClick={() => onTabChange(item.key)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-[14px] transition-all duration-200 group relative ${
+                isActive 
+                  ? "bg-dash-border-light text-dash-text shadow-sm" 
+                  : "text-dash-text-muted hover:text-dash-text hover:bg-dash-card-hover"
               }`}
             >
-              <div className="flex items-center gap-2 mb-2">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-inner ${
-                  activeChildId === child.id 
-                    ? "bg-gradient-to-br from-blue-500 to-indigo-600" 
-                    : "bg-gray-800"
-                }`}>
-                  <span className="text-white text-xs font-bold">{child.name.charAt(0).toUpperCase()}</span>
-                </div>
-                <div className="flex-1 truncate">
-                  <p className={`text-xs font-semibold ${activeChildId === child.id ? "text-text" : "text-gray-300"}`}>
-                    {child.name}
-                  </p>
-                  {child.age && (
-                    <p className="text-[10px] text-gray-500">{child.age} years old</p>
-                  )}
-                </div>
-                {/* Delete Button (visible on hover) */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (window.confirm(`Are you sure you want to remove ${child.name}?`)) {
-                      onDeleteChild(child.id);
-                    }
-                  }}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
-                  title="Remove Child"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                </button>
+              <div className={`${isActive ? "text-indigo-400" : "text-dash-text-faded group-hover:text-indigo-400 transition-colors"}`}>
+                {item.icon}
               </div>
+              <span className="text-[13px] font-bold tracking-wide">{item.label}</span>
               
-              {child.devicePaired ? (
-                <div className="flex items-center gap-1.5">
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-success"></span>
-                  </span>
-                  <span className="text-[10px] text-success font-medium">Diamond Shield Active</span>
-                </div>
-              ) : (
-                <div className="mt-2">
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onPairDevice(child.id);
-                    }}
-                    className="w-full py-1.5 bg-blue-600/20 text-blue-400 text-[10px] font-bold rounded-lg hover:bg-blue-600/40 transition-colors border border-blue-500/20"
-                  >
-                    PAIR DEVICE
-                  </button>
-                </div>
+              {/* Active Dot Indicator */}
+              {isActive && (
+                <div className="absolute right-4 w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]"></div>
               )}
-            </div>
-          ))
-        )}
+            </button>
+          );
+        })}
 
-        <button 
-          onClick={onAddChild}
-          className="mt-2 w-full py-2 border border-dashed border-gray-600 rounded-xl text-gray-400 text-xs font-medium hover:text-white hover:border-gray-400 transition-colors flex items-center justify-center gap-2"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Add Child
-        </button>
+        {/* Separator line */}
+        <div className="h-[1px] w-full bg-[#1e222b] my-6"></div>
+
+        {/* Children Section */}
+        <div className="px-2">
+          <h3 className="text-[10px] font-extrabold text-dash-text-faded tracking-[0.2em] uppercase mb-3 ml-2">Children</h3>
+          <div className="space-y-1.5">
+            {childrenProfiles.map((child) => (
+              <button
+                key={child.id}
+                onClick={() => onSelectChild(child.id)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-[14px] transition-all duration-200 border ${
+                  activeChildId === child.id
+                    ? "bg-dash-card-hover border-dash-border-light"
+                    : "bg-transparent border-transparent hover:bg-dash-card-hover"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 rounded-md bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs font-bold shrink-0">
+                    {child.name.charAt(0).toUpperCase()}
+                  </div>
+                  <span className={`text-[13px] font-bold ${activeChildId === child.id ? "text-dash-text" : "text-dash-text-muted"}`}>
+                    {child.name}
+                  </span>
+                </div>
+                {activeChildId === child.id && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+                )}
+              </button>
+            ))}
+
+            <button
+              onClick={onAddChild}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 mt-2 rounded-[14px] border border-dashed border-dash-border-light text-dash-text-muted hover:text-dash-text hover:border-dash-text-faded hover:bg-dash-card-hover transition-all"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span className="text-[12px] font-bold">Add Child</span>
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Bottom Profile Area (N Avatar) */}
+      <div className="p-6">
+        <div className="w-9 h-9 rounded-full bg-dash-card-hover border border-dash-border-light flex items-center justify-center text-dash-text text-[13px] font-bold shadow-md cursor-pointer hover:bg-dash-border-light transition-colors">
+          N
+        </div>
       </div>
     </div>
   );

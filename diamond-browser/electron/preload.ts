@@ -95,5 +95,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showDownloadInFolder: (savePath: string): Promise<void> => ipcRenderer.invoke('show-download-in-folder', savePath),
 
   // Get webview preload path synchronously
-  getWebviewPreloadPathSync: (): string => ipcRenderer.sendSync('get-webview-preload-path-sync')
+  getWebviewPreloadPathSync: (): string => ipcRenderer.sendSync('get-webview-preload-path-sync'),
+
+  // Ad Blocker
+  getAdBlockStats: (): Promise<any> =>
+    ipcRenderer.invoke('get-adblock-stats'),
+  toggleAdBlock: (enabled: boolean): Promise<{ enabled: boolean }> =>
+    ipcRenderer.invoke('toggle-adblock', enabled),
+  resetAdBlockStats: (): Promise<any> =>
+    ipcRenderer.invoke('reset-adblock-stats'),
+
+  // Ad Blocker — Per-Site Whitelist
+  getAdBlockWhitelist: (): Promise<string[]> =>
+    ipcRenderer.invoke('get-adblock-whitelist'),
+  whitelistSite: (hostname: string): Promise<any> =>
+    ipcRenderer.invoke('whitelist-site', hostname),
+  unwhitelistSite: (hostname: string): Promise<any> =>
+    ipcRenderer.invoke('unwhitelist-site', hostname),
 });

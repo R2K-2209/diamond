@@ -33,12 +33,12 @@ export default function PairDeviceModal({
         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 rounded-full blur-[60px] pointer-events-none" />
         
         <div className="relative z-10 text-center mb-6">
-          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/20 text-white">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/20 text-dash-text">
             <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-white mb-1 tracking-tight">Connect Device</h2>
+          <h2 className="text-2xl font-bold text-dash-text mb-1 tracking-tight">Connect Device</h2>
           <p className="text-gray-400 text-sm">
             Scan the QR code shown on the Diamond Browser setup screen.
           </p>
@@ -48,13 +48,13 @@ export default function PairDeviceModal({
         <div className="relative z-10 flex bg-[#111111] border border-[#2b2b2b] rounded-xl p-1 mb-6">
           <button 
             onClick={() => setIsScanMode(true)}
-            className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${isScanMode ? 'bg-[#2b2b2b] text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
+            className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${isScanMode ? 'bg-[#2b2b2b] text-dash-text shadow' : 'text-gray-500 hover:text-gray-300'}`}
           >
             Scan QR Code
           </button>
           <button 
             onClick={() => setIsScanMode(false)}
-            className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${!isScanMode ? 'bg-[#2b2b2b] text-white shadow' : 'text-gray-500 hover:text-gray-300'}`}
+            className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${!isScanMode ? 'bg-[#2b2b2b] text-dash-text shadow' : 'text-gray-500 hover:text-gray-300'}`}
           >
             Manual PIN
           </button>
@@ -103,7 +103,7 @@ export default function PairDeviceModal({
                 placeholder="000-000"
                 value={pairingCode}
                 onChange={(e) => setPairingCode(e.target.value)}
-                className="w-full bg-[#111111] border border-[#3a3a3a] rounded-xl px-4 py-4 text-center text-2xl font-mono text-white placeholder-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 mb-6 uppercase tracking-[0.5em] transition-all"
+                className="w-full bg-[#111111] border border-[#3a3a3a] rounded-xl px-4 py-4 text-center text-2xl font-mono text-dash-text placeholder-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 mb-6 uppercase tracking-[0.5em] transition-all"
                 required
               />
             </form>
@@ -111,9 +111,9 @@ export default function PairDeviceModal({
         </div>
 
         <div className="flex justify-end gap-3 relative z-10">
-          <button type="button" onClick={onClose} disabled={isPairing} className="px-5 py-3 text-gray-400 hover:text-white bg-[#222222] hover:bg-[#2b2b2b] rounded-xl font-medium transition-colors w-1/3 disabled:opacity-50">Cancel</button>
+          <button type="button" onClick={onClose} disabled={isPairing} className="px-5 py-3 text-gray-400 hover:text-dash-text bg-[#222222] hover:bg-[#2b2b2b] rounded-xl font-medium transition-colors w-1/3 disabled:opacity-50">Cancel</button>
           {!isScanMode && (
-            <button onClick={onPair} disabled={isPairing} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            <button onClick={onPair} disabled={isPairing} className="flex-1 bg-blue-600 hover:bg-blue-500 text-dash-text font-medium rounded-xl transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
               {isPairing && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
               {isPairing ? 'Connecting...' : 'Connect Device'}
             </button>

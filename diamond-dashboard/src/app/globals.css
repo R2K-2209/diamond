@@ -1,12 +1,23 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-background: #0d0d0d;
-  --color-surface: #141414;
-  --color-surface-2: #1e1e1e;
-  --color-surface-3: #252526;
-  --color-border: #2b2b2b;
-  --color-border-light: #3a3a3a;
+  --color-background: var(--bg-background);
+  --color-surface: var(--bg-surface);
+  --color-surface-2: var(--bg-surface-2);
+  --color-surface-3: var(--bg-surface-3);
+  --color-border: var(--border-color);
+  --color-border-light: var(--border-light);
+  
+  --color-dash-bg: var(--dash-bg);
+  --color-dash-card: var(--dash-card);
+  --color-dash-card-hover: var(--dash-card-hover);
+  --color-dash-border: var(--dash-border);
+  --color-dash-border-light: var(--dash-border-light);
+  --color-dash-text: var(--dash-text);
+  --color-dash-text-muted: var(--dash-text-muted);
+  --color-dash-text-faded: var(--dash-text-faded);
+  --color-dash-sidebar: var(--dash-sidebar);
+
   --color-primary: #3b82f6;
   --color-primary-hover: #2563eb;
   --color-accent: #06b6d4;
@@ -14,16 +25,64 @@
   --color-danger-hover: #dc2626;
   --color-warning: #f59e0b;
   --color-success: #10b981;
-  --color-text: #e2e8f0;
-  --color-text-secondary: #94a3b8;
-  --color-text-muted: #64748b;
+  
+  --color-text: var(--text-main);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
+:root {
+  --bg-background: #ffffff;
+  --bg-surface: #f9fafb;
+  --bg-surface-2: #ffffff;
+  --bg-surface-3: #f3f4f6;
+  --border-color: #e5e7eb;
+  --border-light: #f3f4f6;
+
+  --dash-bg: #f8fafc;
+  --dash-card: #ffffff;
+  --dash-card-hover: #f1f5f9;
+  --dash-border: #e2e8f0;
+  --dash-border-light: #f1f5f9;
+  --dash-text: #0f172a;
+  --dash-text-muted: #64748b;
+  --dash-text-faded: #94a3b8;
+  --dash-sidebar: #ffffff;
+
+  --text-main: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+}
+
+:root.dark, .dark {
+  --bg-background: #0d0d0d;
+  --bg-surface: #141414;
+  --bg-surface-2: #1e1e1e;
+  --bg-surface-3: #252526;
+  --border-color: #2b2b2b;
+  --border-light: #3a3a3a;
+
+  --dash-bg: #0d1117;
+  --dash-card: #161b22;
+  --dash-card-hover: #1a1d24;
+  --dash-border: #1e222b;
+  --dash-border-light: #2a2e37;
+  --dash-text: #ffffff;
+  --dash-text-muted: #8a91a0;
+  --dash-text-faded: #5d6776;
+  --dash-sidebar: #111318;
+
+  --text-main: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+}
+
 html, body {
-  background: var(--color-background);
-  color: var(--color-text);
+  background: var(--bg-background);
+  color: var(--text-main);
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
