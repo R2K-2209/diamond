@@ -105,27 +105,33 @@ export default function Dashboard() {
 
   // ── Data Fetching: Children Profiles ──
   useEffect(() => {
-    if (!user) return;
+    if (!user || !db) return;
     
-    const childrenQuery = query(collection(db, `parents/${user.uid}/children`), orderBy("createdAt", "asc"));
-    const unsubChildren = onSnapshot(childrenQuery, (snapshot) => {
-      const data = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      })) as ChildProfile[];
-      
-      setChildrenProfiles(data);
-      
-      // Auto-select first child if none selected
-      if (data.length > 0 && !activeChildId) {
-        setActiveChildId(data[0].id);
-      } else if (data.length === 0) {
-        setActiveChildId(null);
-      }
-    });
-    
-    return () => unsubChildren();
+    try {
+      const childrenQuery = query(collection(db, `parents/${user.uid}/children`), orderBy("createdAt", "asc"));
+      const unsubChildren = onSnapshot(childrenQuery, (snapshot) => {
+        const data = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        })) as ChildProfile[];
+        
+        setChildrenProfiles(data);
+        
+        // Auto-select first child if none selected
+        if (data.length > 0 && !activeChildId) {
+          setActiveChildId(data[0].id);
+        } else if (data.length === 0) {
+          setActiveChildId(null);
+        }
+      });
+      return () => unsubChildren();
+    } catch (e) {
+      console.error("Firestore init error:", e);
+      setChildrenProfiles([]);
+      setIsLoading(false);
+    }
   }, [user, activeChildId]);
+
 
   // ── Data Fetching: Local APIs + Firestore Real-time ──
   useEffect(() => {
@@ -165,9 +171,10 @@ export default function Dashboard() {
     let unsubAlerts = () => {};
     let unsubRequests = () => {};
 
-    if (activeChildId) {
+    if (activeChildId && db) {
       try {
-        const logsQuery = query(collection(db, "logs"), where("userId", "==", activeChildId), orderBy("timestamp", "desc"), limit(100));
+        // Removed orderBy("timestamp", "desc") because Firebase is throwing missing composite index errors
+        const logsQuery = query(collection(db, "logs"), where("userId", "==", activeChildId));
         unsubLogs = onSnapshot(
           logsQuery,
           (snapshot) => {
@@ -175,13 +182,19 @@ export default function Dashboard() {
               id: doc.id,
               ...doc.data(),
             })) as LogEntry[];
+            // Sort manually in JS to bypass Firestore index requirement
+            data.sort((a, b) => {
+              const tA = a.timestamp?.seconds || 0;
+              const tB = b.timestamp?.seconds || 0;
+              return tB - tA;
+            });
             setLogs(data);
             setIsLoading(false);
           },
           () => setIsLoading(false)
         );
 
-        const alertsQuery = query(collection(db, "alerts"), where("userId", "==", activeChildId), orderBy("timestamp", "desc"), limit(50));
+        const alertsQuery = query(collection(db, "alerts"), where("userId", "==", activeChildId));
         unsubAlerts = onSnapshot(
           alertsQuery,
           (snapshot) => {
@@ -189,12 +202,17 @@ export default function Dashboard() {
               id: doc.id,
               ...doc.data(),
             })) as AlertEntry[];
+            data.sort((a, b) => {
+              const tA = a.timestamp?.seconds || 0;
+              const tB = b.timestamp?.seconds || 0;
+              return tB - tA;
+            });
             setAlerts(data);
           },
           () => {}
         );
 
-        const requestsQuery = query(collection(db, "requests"), where("userId", "==", activeChildId), orderBy("timestamp", "desc"), limit(30));
+        const requestsQuery = query(collection(db, "requests"), where("userId", "==", activeChildId));
         unsubRequests = onSnapshot(
           requestsQuery,
           (snapshot) => {
@@ -202,6 +220,11 @@ export default function Dashboard() {
               id: doc.id,
               ...doc.data(),
             })) as AccessRequest[];
+            data.sort((a, b) => {
+              const tA = a.timestamp?.seconds || 0;
+              const tB = b.timestamp?.seconds || 0;
+              return tB - tA;
+            });
             setRequests(data);
           },
           () => {}
@@ -246,22 +269,75 @@ export default function Dashboard() {
     });
     const pendingRequests = requests.filter((r) => r.status === "PENDING");
 
-    // Unique domains visited today
-    const uniqueDomains = new Set(
-      todayLogs.map((l) => {
-        try {
-          return new URL(l.url).hostname;
-        } catch {
-          return l.url;
-        }
-      })
-    );
+    // Count frequencies and categorize
+    const domainCounts: Record<string, number> = {};
+    let totalCategorized = 0;
+    const categoryCounts = {
+      Games: 0,
+      Entertainment: 0,
+      Education: 0,
+      Social: 0,
+      Other: 0
+    };
+
+    // Simple categorized mapping
+    const categoryMap: Record<string, keyof typeof categoryCounts> = {
+      "roblox.com": "Games",
+      "minecraft.net": "Games",
+      "miniclip.com": "Games",
+      "youtube.com": "Entertainment",
+      "netflix.com": "Entertainment",
+      "tiktok.com": "Entertainment",
+      "twitch.tv": "Entertainment",
+      "wikipedia.org": "Education",
+      "khanacademy.org": "Education",
+      "quizlet.com": "Education",
+      "instagram.com": "Social",
+      "facebook.com": "Social",
+      "twitter.com": "Social",
+      "reddit.com": "Social",
+      "discord.com": "Social",
+    };
+
+    todayLogs.forEach((l) => {
+      let domain = l.url;
+      try {
+        domain = new URL(l.url).hostname.replace("www.", "");
+      } catch {}
+      
+      domainCounts[domain] = (domainCounts[domain] || 0) + 1;
+      
+      // Attempt categorization
+      const category = categoryMap[domain] || "Other";
+      categoryCounts[category]++;
+      totalCategorized++;
+    });
+
+    const uniqueDomains = new Set(Object.keys(domainCounts));
+
+    // Sort to get top 5
+    const topWebsites = Object.entries(domainCounts)
+      .map(([domain, visits]) => ({ domain, visits }))
+      .sort((a, b) => b.visits - a.visits)
+      .slice(0, 5);
+
+    // Calculate percentages for donut chart
+    const categoryData = totalCategorized === 0 ? [] : [
+      { label: "Games", pct: Math.round((categoryCounts.Games / totalCategorized) * 100), color: "bg-violet-400", stroke: "#a78bfa" },
+      { label: "Entertainment", pct: Math.round((categoryCounts.Entertainment / totalCategorized) * 100), color: "bg-pink-400", stroke: "#f472b6" },
+      { label: "Education", pct: Math.round((categoryCounts.Education / totalCategorized) * 100), color: "bg-blue-400", stroke: "#60a5fa" },
+      { label: "Social", pct: Math.round((categoryCounts.Social / totalCategorized) * 100), color: "bg-orange-400", stroke: "#fb923c" },
+      { label: "Other", pct: Math.round((categoryCounts.Other / totalCategorized) * 100), color: "bg-gray-400", stroke: "#9ca3af" },
+    ].filter(c => c.pct > 0).sort((a, b) => b.pct - a.pct);
 
     return {
       totalVisits: todayLogs.length,
       blockedAttempts: todayAlerts.length,
       uniqueDomains: uniqueDomains.size,
       pendingRequests: pendingRequests.length,
+      topWebsites,
+      categoryData,
+      totalCategorized
     };
   }, [logs, alerts, requests]);
 
@@ -412,10 +488,10 @@ export default function Dashboard() {
       {/* Dashboard Stat Cards */}
       <div className="grid grid-cols-4 gap-5">
         {[
-          { label: "Total Usage", value: "0m", change: "+0.2%", changeColor: "text-emerald-400", barColors: "from-blue-500 to-blue-400" },
-          { label: "Active Devices", value: "3", sub: "iPad, Laptop, iPhone", barColors: "from-rose-500 to-pink-400" },
-          { label: "Websites Visited", value: "1,284", change: "+5.1%", changeColor: "text-emerald-400", barColors: "from-indigo-500 to-violet-400" },
-          { label: "Blocked Attempts", value: String(stats.blockedAttempts), change: "-2%", changeColor: "text-rose-400", barColors: "from-amber-500 to-orange-400" },
+          { label: "Total Visits", value: String(stats.totalVisits), change: "", changeColor: "", barColors: "from-blue-500 to-blue-400" },
+          { label: "Unique Websites", value: String(stats.uniqueDomains), sub: "Today", barColors: "from-rose-500 to-pink-400" },
+          { label: "Blocked Attempts", value: String(stats.blockedAttempts), change: "", changeColor: "", barColors: "from-indigo-500 to-violet-400" },
+          { label: "Pending Requests", value: String(stats.pendingRequests), change: "", changeColor: "", barColors: "from-amber-500 to-orange-400" },
         ].map((card, i) => (
           <div key={i} className="bg-dash-card rounded-2xl p-6 border border-dash-border relative overflow-hidden">
             <div className={`absolute top-0 right-4 w-1.5 h-12 rounded-b-full bg-gradient-to-b ${card.barColors} opacity-80`}></div>
@@ -432,45 +508,71 @@ export default function Dashboard() {
         {/* Top Visited Websites */}
         <div className="bg-dash-card rounded-2xl p-6 border border-dash-border">
           <h3 className="text-[15px] font-bold text-dash-text mb-6">Top Visited Websites</h3>
-          <div className="flex items-center justify-center h-32 text-[13px] text-dash-text-faded">No data yet</div>
-        </div>
-
-        {/* Time Distribution */}
-        <div className="bg-dash-card rounded-2xl p-6 border border-dash-border">
-          <h3 className="text-[15px] font-bold text-dash-text mb-6">Time Distribution</h3>
-          <div className="flex items-center gap-10">
-            {/* Donut Chart */}
-            <div className="relative w-[130px] h-[130px] shrink-0">
-              <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                <circle cx="18" cy="18" r="14" fill="none" stroke="#2a2e37" strokeWidth="3.5" />
-                <circle cx="18" cy="18" r="14" fill="none" stroke="#a78bfa" strokeWidth="3.5" strokeDasharray="39.6 88" strokeDashoffset="0" strokeLinecap="round" />
-                <circle cx="18" cy="18" r="14" fill="none" stroke="#f472b6" strokeWidth="3.5" strokeDasharray="26.4 88" strokeDashoffset="-39.6" strokeLinecap="round" />
-                <circle cx="18" cy="18" r="14" fill="none" stroke="#60a5fa" strokeWidth="3.5" strokeDasharray="13.2 88" strokeDashoffset="-66" strokeLinecap="round" />
-                <circle cx="18" cy="18" r="14" fill="none" stroke="#fb923c" strokeWidth="3.5" strokeDasharray="8.8 88" strokeDashoffset="-79.2" strokeLinecap="round" />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-extrabold text-dash-text">18h</span>
-                <span className="text-[9px] font-bold text-dash-text-faded uppercase tracking-widest">Total</span>
-              </div>
-            </div>
-            {/* Legend */}
-            <div className="space-y-3.5 flex-1">
-              {[
-                { label: "Games", pct: "45%", color: "bg-violet-400" },
-                { label: "Entertainment", pct: "30%", color: "bg-pink-400" },
-                { label: "Education", pct: "15%", color: "bg-blue-400" },
-                { label: "Social", pct: "10%", color: "bg-orange-400" },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className={`w-2.5 h-2.5 rounded-full ${item.color}`}></div>
-                    <span className="text-[13px] text-dash-text-muted font-medium">{item.label}</span>
+          {stats.topWebsites.length === 0 ? (
+            <div className="flex items-center justify-center h-32 text-[13px] text-dash-text-faded">No data yet</div>
+          ) : (
+            <div className="space-y-4">
+              {stats.topWebsites.map((site, i) => (
+                <div key={site.domain} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 h-6 rounded bg-dash-card-hover border border-dash-border-light flex items-center justify-center text-[10px] font-bold text-dash-text-muted">
+                      {i + 1}
+                    </div>
+                    <span className="text-[13px] font-medium text-dash-text truncate max-w-[150px]">{site.domain}</span>
                   </div>
-                  <span className="text-[13px] font-bold text-dash-text">{item.pct}</span>
+                  <span className="text-[12px] font-bold text-dash-text-muted">{site.visits} visits</span>
                 </div>
               ))}
             </div>
-          </div>
+          )}
+        </div>
+
+        {/* Category Distribution */}
+        <div className="bg-dash-card rounded-2xl p-6 border border-dash-border">
+          <h3 className="text-[15px] font-bold text-dash-text mb-6">Category Distribution</h3>
+          {stats.categoryData.length === 0 ? (
+            <div className="flex items-center justify-center h-32 text-[13px] text-dash-text-faded">No data yet</div>
+          ) : (
+            <div className="flex items-center gap-10">
+              {/* Donut Chart */}
+              <div className="relative w-[130px] h-[130px] shrink-0">
+                <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                  <circle cx="18" cy="18" r="14" fill="none" stroke="#2a2e37" strokeWidth="3.5" />
+                  {(() => {
+                    let offset = 0;
+                    return stats.categoryData.map((cat, i) => {
+                      const dashArray = (cat.pct / 100) * 88;
+                      const currentOffset = offset;
+                      offset -= dashArray;
+                      return (
+                        <circle 
+                          key={cat.label}
+                          cx="18" cy="18" r="14" fill="none" stroke={cat.stroke} strokeWidth="3.5" 
+                          strokeDasharray={`${dashArray} 88`} strokeDashoffset={currentOffset} strokeLinecap="round" 
+                        />
+                      );
+                    });
+                  })()}
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-2xl font-extrabold text-dash-text">{stats.totalCategorized}</span>
+                  <span className="text-[9px] font-bold text-dash-text-faded uppercase tracking-widest">Visits</span>
+                </div>
+              </div>
+              {/* Legend */}
+              <div className="space-y-3.5 flex-1">
+                {stats.categoryData.map((item) => (
+                  <div key={item.label} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-2.5 h-2.5 rounded-full ${item.color}`}></div>
+                      <span className="text-[13px] text-dash-text-muted font-medium">{item.label}</span>
+                    </div>
+                    <span className="text-[13px] font-bold text-dash-text">{item.pct}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -562,7 +664,9 @@ export default function Dashboard() {
                 </div>
                 <div className="flex flex-col justify-center">
                   <p className="text-[10px] font-bold text-dash-text-faded uppercase tracking-widest mb-0.5">Dashboard Overview</p>
-                  <h2 className="text-[22px] font-bold text-dash-text tracking-tight leading-none">Hello, Jolin J. 👋</h2>
+                  <h2 className="text-[22px] font-bold text-dash-text tracking-tight leading-none">
+                    Hello, {user?.email ? user.email.split('@')[0] : "Parent"} 👋
+                  </h2>
                 </div>
               </div>
               

@@ -657,6 +657,20 @@ function setupIPCHandlers() {
   // Normal browsing log
   ipcMain.handle('log-navigation', async (_event, url, title) => {
     recordLocalNavigation(url, title);
+    try {
+      const config = getAppConfig();
+      if (config.childId) {
+        await addDoc(collection(db, 'logs'), {
+          url,
+          title: title || 'Unknown',
+          timestamp: serverTimestamp(),
+          userId: config.childId,
+          safe: true
+        });
+      }
+    } catch (e) {
+      console.error('[Firebase] Error logging navigation:', e);
+    }
   });
 
   // Explicit block log from renderer
@@ -777,19 +791,23 @@ function notifyBlocked(url: string, category?: string, reason?: string, layer?: 
 
 async function logSecurityAlert(url: string, category: string, reason: string) {
   recordLocalAlert({ url, category, reason, severity: 'HIGH' });
-  /* Firestore disabled — enable when API is active
+  
   try {
-    await addDoc(collection(db, 'alerts'), {
-      type: 'BLOCKED_ATTEMPT',
-      url,
-      category,
-      reason,
-      timestamp: serverTimestamp(),
-      userId: 'test-child-user',
-      severity: 'HIGH',
-    });
-  } catch {}
-  */
+    const config = getAppConfig();
+    if (config.childId) {
+      await addDoc(collection(db, 'alerts'), {
+        type: 'BLOCKED_ATTEMPT',
+        url,
+        category,
+        reason,
+        timestamp: serverTimestamp(),
+        userId: config.childId,
+        severity: 'HIGH',
+      });
+    }
+  } catch (err) {
+    console.error('[Firebase] Failed to log alert:', err);
+  }
 }
 
 // ─── App Lifecycle ──────────────────────────────────────────────

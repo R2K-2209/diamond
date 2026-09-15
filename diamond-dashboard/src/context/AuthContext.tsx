@@ -76,6 +76,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     router.push('/login');
   };
 
+  const bypassLoginForUITesting = (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e && e.preventDefault) e.preventDefault();
+    alert("Bypass button tapped! Loading Dashboard...");
+    setUser({ uid: 'mock-test-uid-123', email: 'test@ui-designer.com', emailVerified: true } as User);
+    setLoading(false);
+    setAuthError(null);
+    if (pathname === '/login') router.push('/');
+  };
+
   return (
     <AuthContext.Provider value={{ user, loading, signOut }}>
       {loading ? (
@@ -84,12 +93,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
             <p className="text-gray-400 text-sm">Authenticating...</p>
           </div>
-          <button 
-            onClick={() => alert("JavaScript is working correctly on your phone! The issue is solely with Firebase.")}
-            className="px-4 py-2 border border-gray-700 rounded-lg text-gray-500 text-xs"
-          >
-            Test Connection
-          </button>
+          <div className="flex gap-4 mt-4">
+            <button 
+              type="button"
+              onClick={() => alert("JavaScript is working correctly on your phone! The issue is solely with Firebase.")}
+              onTouchStart={() => alert("JavaScript touch works!")}
+              className="px-4 py-2 border border-gray-700 rounded-lg text-gray-500 text-xs"
+            >
+              Test Connection
+            </button>
+            <button 
+              type="button"
+              onClick={bypassLoginForUITesting}
+              onTouchStart={bypassLoginForUITesting}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium active:bg-blue-800"
+              style={{ minHeight: '44px', minWidth: '120px' }}
+            >
+              Bypass Login (Test UI)
+            </button>
+          </div>
         </div>
       ) : authError ? (
         <div className="flex h-screen items-center justify-center bg-[#0d0d0d]">

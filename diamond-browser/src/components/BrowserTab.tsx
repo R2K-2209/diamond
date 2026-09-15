@@ -6,6 +6,8 @@ import { SettingsPage } from './Settings';
 import { HistoryPage } from './History';
 import { DownloadsPage } from './Downloads';
 import { BookmarksPage } from './Bookmarks';
+import { db } from '../firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 interface BrowserTabProps {
   tab: TabData;
@@ -139,13 +141,33 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
         title: webview.getTitle() || 'Loading...'
       });
 
+      // 1. Send to main process for local JSON history
       try {
         if ((window as any).electronAPI?.logNavigation) {
           (window as any).electronAPI.logNavigation(e.url, webview.getTitle() || 'Unknown').catch(() => {});
         }
       } catch (err) {
-        console.error('Failed to log navigation', err);
+        console.error('Failed to log navigation locally', err);
       }
+
+      // 2. Send directly to Firebase from Renderer (fixes Main process network issues)
+      (async () => {
+        try {
+          const config = await (window as any).electronAPI?.getConfig?.();
+          if (config && config.childId) {
+            await addDoc(collection(db, 'logs'), {
+              url: e.url,
+              title: webview.getTitle() || 'Unknown',
+              timestamp: serverTimestamp(),
+              userId: config.childId,
+              safe: true
+            });
+            console.log('[Firebase] Navigation logged successfully to Dashboard!');
+          }
+        } catch (err) {
+          console.error('[Firebase] Failed to log navigation to Dashboard:', err);
+        }
+      })();
     };
 
     const handleDidFailLoad = (e: any) => {

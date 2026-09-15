@@ -4,6 +4,8 @@ import { updatePolicyFromIPC } from './policySync';
 import type { TabData, BlockedState, ProtectionStatus } from './types';
 import { BrowserTab } from './components/BrowserTab';
 import { SetupScreen } from './components/SetupScreen';
+import { db } from './firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import './index.css';
 
 // ─── App Component ──────────────────────────────────────────────
@@ -156,8 +158,37 @@ function App() {
       requestSent: false,
       showAdvanced: false
     });
-
     (window as any).electronAPI?.logBlocked?.(url, reason, category);
+
+    // Send directly to Firebase from Renderer (fixes Main process network issues)
+    (async () => {
+      try {
+        const config = await (window as any).electronAPI?.getConfig?.();
+        if (config && config.childId) {
+          await addDoc(collection(db, 'alerts'), {
+            type: 'BLOCKED_ATTEMPT',
+            url,
+            category: blockedInfo.category || 'Restricted',
+            reason: blockedInfo.reason || 'Blocked',
+            timestamp: serverTimestamp(),
+            userId: config.childId,
+            severity: 'HIGH',
+          });
+          
+          await addDoc(collection(db, 'logs'), {
+            url,
+            title: blockedInfo.category ? `Blocked: ${blockedInfo.category}` : 'Blocked Site',
+            timestamp: serverTimestamp(),
+            userId: config.childId,
+            safe: false,
+            blocked: true
+          });
+          console.log('[Firebase] Alert logged successfully to Dashboard!');
+        }
+      } catch (err) {
+        console.error('[Firebase] Failed to log alert to Dashboard:', err);
+      }
+    })();
 
     try {
       const blockedUrl = await (window as any).electronAPI?.getBlockedUrl?.(
