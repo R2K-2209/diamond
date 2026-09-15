@@ -208,7 +208,7 @@ export default function PolicyControls() {
       {/* ═══ SECURITY LEVEL ═══ */}
       <section>
         <h2 className="text-[12px] font-extrabold text-dash-text-muted uppercase tracking-wider mb-5">Security Level</h2>
-        <div className="grid grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {MODE_OPTIONS.map((opt) => {
             const isActive = policy.mode === opt.value;
             return (
@@ -244,7 +244,7 @@ export default function PolicyControls() {
             {CATEGORY_TOGGLES.filter(cat => policy[cat.key as keyof ContentPolicy]).length} Active Rules
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {CATEGORY_TOGGLES.map((cat) => {
             const isOn = policy[cat.key as keyof ContentPolicy] as boolean;
             return (
@@ -291,7 +291,7 @@ export default function PolicyControls() {
       {/* ═══ CUSTOM OVERRIDES ═══ */}
       <section>
         <h2 className="text-[12px] font-extrabold text-dash-text-muted uppercase tracking-wider mb-5">Custom Overrides</h2>
-        <div className="grid grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           
           {/* Always Block */}
           <div className="bg-dash-sidebar border border-dash-border rounded-2xl p-5 flex flex-col">

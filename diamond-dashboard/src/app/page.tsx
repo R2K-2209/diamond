@@ -484,9 +484,9 @@ export default function Dashboard() {
 
   // ── Dashboard Tab Content ──
   const renderDashboardTab = () => (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
       {/* Dashboard Stat Cards */}
-      <div className="grid grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
         {[
           { label: "Total Visits", value: String(stats.totalVisits), change: "", changeColor: "", barColors: "from-blue-500 to-blue-400" },
           { label: "Unique Websites", value: String(stats.uniqueDomains), sub: "Today", barColors: "from-rose-500 to-pink-400" },
@@ -504,7 +504,7 @@ export default function Dashboard() {
       </div>
 
       {/* Bottom Row: Top Visited Websites + Time Distribution */}
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
         {/* Top Visited Websites */}
         <div className="bg-dash-card rounded-2xl p-6 border border-dash-border">
           <h3 className="text-[15px] font-bold text-dash-text mb-6">Top Visited Websites</h3>
@@ -533,7 +533,7 @@ export default function Dashboard() {
           {stats.categoryData.length === 0 ? (
             <div className="flex items-center justify-center h-32 text-[13px] text-dash-text-faded">No data yet</div>
           ) : (
-            <div className="flex items-center gap-10">
+            <div className="flex flex-col sm:flex-row items-center gap-6 sm:gap-10">
               {/* Donut Chart */}
               <div className="relative w-[130px] h-[130px] shrink-0">
                 <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
@@ -560,7 +560,7 @@ export default function Dashboard() {
                 </div>
               </div>
               {/* Legend */}
-              <div className="space-y-3.5 flex-1">
+              <div className="space-y-3.5 w-full sm:flex-1">
                 {stats.categoryData.map((item) => (
                   <div key={item.label} className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
@@ -584,20 +584,22 @@ export default function Dashboard() {
       <div className="px-6 py-5 border-b border-dash-border">
         <h3 className="text-[15px] font-bold text-dash-text">Activity Logs</h3>
       </div>
-      {/* Table Header */}
-      <div className="grid grid-cols-7 gap-4 px-6 py-3 text-[11px] font-bold text-dash-text-faded uppercase tracking-wider border-b border-dash-border">
-        <span>Time</span>
-        <span>Child</span>
-        <span>Device</span>
-        <span className="col-span-2">Websites/App</span>
-        <span>Category</span>
-        <span>Action</span>
-      </div>
-      {/* Table Body */}
-      {logs.length === 0 ? (
-        <div className="flex items-center justify-center h-48 text-[13px] text-dash-text-faded">No activity logs yet</div>
-      ) : (
-        <div className="divide-y divide-[#1e222b]">
+      <div className="overflow-x-auto">
+        <div className="min-w-[800px]">
+          {/* Table Header */}
+          <div className="grid grid-cols-7 gap-4 px-6 py-3 text-[11px] font-bold text-dash-text-faded uppercase tracking-wider border-b border-dash-border">
+            <span>Time</span>
+            <span>Child</span>
+            <span>Device</span>
+            <span className="col-span-2">Websites/App</span>
+            <span>Category</span>
+            <span>Action</span>
+          </div>
+          {/* Table Body */}
+          {logs.length === 0 ? (
+            <div className="flex items-center justify-center h-48 text-[13px] text-dash-text-faded">No activity logs yet</div>
+          ) : (
+            <div className="divide-y divide-[#1e222b]">
           {logs.map((log) => {
             let domain = log.url;
             try { domain = new URL(log.url).hostname.replace("www.", ""); } catch {}
@@ -614,6 +616,8 @@ export default function Dashboard() {
           })}
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 
@@ -655,9 +659,17 @@ export default function Dashboard() {
         {activeChildId ? (
           <>
             {/* Top Header — KIDSGUARD layout */}
-            <header className="h-[80px] border-b border-dash-border shrink-0 flex items-center justify-between px-10">
-              <div className="flex items-center gap-4">
-                <div className="w-[42px] h-[42px] rounded-full bg-dash-card-hover flex items-center justify-center border border-dash-border-light overflow-hidden">
+            <header className="h-[80px] border-b border-dash-border shrink-0 flex items-center justify-between px-4 md:px-10">
+              <div className="flex items-center gap-3 md:gap-4">
+                <button 
+                  onClick={() => setIsMobileMenuOpen(true)}
+                  className="md:hidden p-2 -ml-2 text-gray-400 hover:text-dash-text bg-dash-card rounded-lg"
+                >
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+                <div className="w-[42px] h-[42px] hidden sm:flex rounded-full bg-dash-card-hover items-center justify-center border border-dash-border-light overflow-hidden">
                   <svg className="w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
@@ -670,22 +682,22 @@ export default function Dashboard() {
                 </div>
               </div>
               
-              <div className="flex items-center gap-4">
-                <div className="relative">
+              <div className="flex items-center gap-2 md:gap-4">
+                <div className="relative hidden md:block">
                   <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[15px] h-[15px] text-dash-text-faded" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                   <input type="text" placeholder="Search..." className="w-44 bg-dash-card border border-dash-border-light rounded-full py-2 pl-10 pr-4 text-[13px] text-dash-text placeholder-dash-text-faded focus:outline-none focus:border-indigo-500 transition-colors" />
                 </div>
                 
-                <div className="flex items-center gap-2 bg-dash-card border border-dash-border-light rounded-full px-4 py-2 cursor-pointer hover:bg-dash-card-hover transition-colors">
+                <div className="hidden md:flex items-center gap-2 bg-dash-card border border-dash-border-light rounded-full px-4 py-2 cursor-pointer hover:bg-dash-card-hover transition-colors">
                   <svg className="w-[15px] h-[15px] text-dash-text-faded" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                   <span className="text-[13px] font-bold text-dash-text-muted">May 14 - 20, 2024</span>
                 </div>
                 
-                <button className="w-10 h-10 rounded-full bg-dash-card border border-dash-border-light flex items-center justify-center text-dash-text-muted hover:text-dash-text transition-colors">
+                <button className="hidden sm:flex w-10 h-10 rounded-full bg-dash-card border border-dash-border-light items-center justify-center text-dash-text-muted hover:text-dash-text transition-colors">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                   </svg>
@@ -694,7 +706,7 @@ export default function Dashboard() {
             </header>
 
             {/* Main Content Area */}
-            <main className="flex-1 overflow-y-auto p-10 custom-scrollbar">
+            <main className="flex-1 overflow-y-auto p-4 md:p-10 custom-scrollbar">
               {activeTab === "dashboard" && renderDashboardTab()}
               
               {activeTab === "usage_activity" && renderUsageActivityTab()}
@@ -716,7 +728,7 @@ export default function Dashboard() {
                       <p className="text-[13px] text-dash-text-faded mt-1">Review blocked activity and manage access requests for {childrenProfiles.find(c => c.id === activeChildId)?.name || 'your child'}.</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-5">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
                     <AlertsFeed alerts={alerts} onDelete={handleDeleteAlert} />
                     <AccessRequests requests={requests} onApprove={handleApproveRequest} onDeny={handleDenyRequest} />
                   </div>
@@ -757,7 +769,7 @@ export default function Dashboard() {
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <button 
                           onClick={() => setTheme('dark')}
                           className={`flex flex-col items-center gap-3 p-4 rounded-xl border-2 transition-all relative overflow-hidden group ${
