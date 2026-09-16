@@ -166,8 +166,15 @@ export function checkUrlSafety(inputUrl: string): SafetyCheckResult {
 
   // ── 1. Cloud policy: custom allow-list (highest priority) ──
   if (policy.customAllowedDomains.length > 0) {
-    const allowMatch = matchesDomainList(hostname, policy.customAllowedDomains);
-    if (allowMatch) {
+    const isAllowed = policy.customAllowedDomains.some((d: any) => {
+      const allowedUrl = typeof d === 'string' ? d : d.url;
+      const expiry = typeof d === 'string' ? null : d.expiry;
+      
+      if (!urlString.includes(allowedUrl)) return false;
+      if (expiry !== null && Date.now() > expiry) return false;
+      return true;
+    });
+    if (isAllowed) {
       return { blocked: false }; // Parent explicitly allowed this domain
     }
   }

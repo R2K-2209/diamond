@@ -47,11 +47,6 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
     const handlePageTitleUpdated = (e: any) => {
       const newTitle = e.title || 'Unknown';
       onUpdate(tab.id, { title: newTitle });
-      try {
-        if ((window as any).electronAPI?.logNavigation) {
-          (window as any).electronAPI.logNavigation(webview.getURL(), newTitle).catch(() => {});
-        }
-      } catch (err) {}
     };
 
     const handlePageFaviconUpdated = (e: any) => {
@@ -207,7 +202,33 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
     // Layer 4: Content flagged from webview preload via ipc-message
     const handleIpcMessage = (e: any) => {
       if (e.channel === 'request-access' && e.args?.[0]) {
-        const { url, category } = e.args[0];
+        const { url, category, reason } = e.args[0];
+        
+        // Send directly to Firebase from Renderer
+        (async () => {
+          try {
+            const config = await (window as any).electronAPI?.getConfig?.();
+            if (config && config.childId) {
+              await addDoc(collection(db, 'requests'), {
+                url,
+                category: category || 'Restricted',
+                reason: reason || 'Parent blocked this site',
+                timestamp: serverTimestamp(),
+                userId: config.childId,
+                status: 'pending'
+              });
+              console.log('[Firebase] Access request logged successfully to Dashboard!');
+              
+              // Update UI to show request sent in the block page
+              const currentTab = tabRef.current;
+              onUpdate(currentTab.id, { requestSent: true });
+            }
+          } catch (err) {
+            console.error('[Firebase] Failed to log request:', err);
+          }
+        })();
+        
+        // Also log locally via main process for historical JSON
         (window as any).electronAPI?.requestAccess?.(url, category);
         return;
       }
@@ -227,6 +248,33 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
       if (e.channel === 'content-flagged' && e.args?.[0]) {
         const data = e.args[0];
         onTriggerBlock(tab.id, data.url, data.category, data.reason, 'content-scan');
+        return;
+      }
+
+      if (e.channel === 'content-flagged-silent' && e.args?.[0]) {
+        const data = e.args[0];
+        
+        // Send directly to Firebase from Renderer
+        (async () => {
+          try {
+            const config = await (window as any).electronAPI?.getConfig?.();
+            if (config && config.childId) {
+              await addDoc(collection(db, 'alerts'), {
+                type: 'ALLOWED_SITE_FLAG',
+                url: data.url,
+                category: data.category || 'Restricted',
+                reason: data.reason || 'Keyword found',
+                timestamp: serverTimestamp(),
+                userId: config.childId,
+                severity: 'LOW',
+              });
+              console.log('[Firebase] Silent flag logged successfully to Dashboard!');
+            }
+          } catch (err) {
+            console.error('[Firebase] Failed to log silent flag:', err);
+          }
+        })();
+        return;
       }
     };
 

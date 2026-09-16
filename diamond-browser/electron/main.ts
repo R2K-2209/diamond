@@ -657,20 +657,6 @@ function setupIPCHandlers() {
   // Normal browsing log
   ipcMain.handle('log-navigation', async (_event, url, title) => {
     recordLocalNavigation(url, title);
-    try {
-      const config = getAppConfig();
-      if (config.childId) {
-        await addDoc(collection(db, 'logs'), {
-          url,
-          title: title || 'Unknown',
-          timestamp: serverTimestamp(),
-          userId: config.childId,
-          safe: true
-        });
-      }
-    } catch (e) {
-      console.error('[Firebase] Error logging navigation:', e);
-    }
   });
 
   // Explicit block log from renderer
@@ -730,6 +716,11 @@ function setupIPCHandlers() {
     return readLocalPolicy();
   });
 
+  // Get current policy mode synchronously for preload scripts
+  ipcMain.on('get-policy-mode-sync', (event) => {
+    event.returnValue = readLocalPolicy().mode || 'moderate';
+  });
+
   // Protection status query from renderer
   ipcMain.handle('get-protection-status', () => {
     const policy = getPolicy();
@@ -763,6 +754,23 @@ function setupIPCHandlers() {
     event.returnValue = `file://${webviewPreloadPath.replace(/\\\\/g, '/')}`;
   });
 
+  // Check if a domain is explicitly allowed (Synchronous, used by webview preload)
+  ipcMain.on('is-domain-allowed-sync', (event, urlString) => {
+    const policy = getPolicy();
+    if (!policy || !policy.customAllowedDomains || policy.customAllowedDomains.length === 0) {
+      event.returnValue = false;
+      return;
+    }
+    const isAllowed = policy.customAllowedDomains.some((d: any) => {
+      const allowedUrl = typeof d === 'string' ? d : d.url;
+      const expiry = typeof d === 'string' ? null : d.expiry;
+      if (!urlString.includes(allowedUrl)) return false;
+      if (expiry !== null && Date.now() > expiry) return false;
+      return true;
+    });
+    event.returnValue = isAllowed;
+  });
+
   // Pairing Config
   ipcMain.handle('get-config', () => {
     return getAppConfig();
@@ -791,23 +799,6 @@ function notifyBlocked(url: string, category?: string, reason?: string, layer?: 
 
 async function logSecurityAlert(url: string, category: string, reason: string) {
   recordLocalAlert({ url, category, reason, severity: 'HIGH' });
-  
-  try {
-    const config = getAppConfig();
-    if (config.childId) {
-      await addDoc(collection(db, 'alerts'), {
-        type: 'BLOCKED_ATTEMPT',
-        url,
-        category,
-        reason,
-        timestamp: serverTimestamp(),
-        userId: config.childId,
-        severity: 'HIGH',
-      });
-    }
-  } catch (err) {
-    console.error('[Firebase] Failed to log alert:', err);
-  }
 }
 
 // ─── App Lifecycle ──────────────────────────────────────────────

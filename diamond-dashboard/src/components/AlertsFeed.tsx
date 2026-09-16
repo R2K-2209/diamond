@@ -44,7 +44,7 @@ function getDomainFromUrl(url: string): string {
 export default function AlertsFeed({ alerts, onDelete }: AlertsFeedProps) {
   if (alerts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-text-muted">
+      <div className="flex flex-col items-center justify-center h-64 text-dash-text-faded">
         <svg className="w-12 h-12 mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
         </svg>
@@ -54,41 +54,94 @@ export default function AlertsFeed({ alerts, onDelete }: AlertsFeedProps) {
     );
   }
 
+  // Group alerts by URL and Category within a 5-minute rolling window
+  const groupedAlerts: any[] = [];
+  alerts.forEach(alert => {
+    // Ignore internal/local pages
+    if (alert.url.includes('localhost') || alert.url.includes('127.0.0.1') || alert.url.includes('blocked.html') || alert.url.startsWith('diamond://')) {
+      return;
+    }
+
+    const alertTime = alert.timestamp?.seconds || 0;
+    const group = groupedAlerts.find(g => {
+      const gTime = g.timestamp?.seconds || 0;
+      return g.url === alert.url && g.category === alert.category && Math.abs(gTime - alertTime) < 300;
+    });
+
+    if (group) {
+      group.ids.push(alert.id);
+      if (!group.reasons.includes(alert.reason)) {
+        group.reasons.push(alert.reason);
+      }
+    } else {
+      groupedAlerts.push({
+        id: alert.id,
+        ids: [alert.id],
+        category: alert.category,
+        reasons: [alert.reason],
+        url: alert.url,
+        timestamp: alert.timestamp
+      });
+    }
+  });
+
   return (
-    <div className="space-y-2">
-      {alerts.map((alert) => {
-        const style = getCategoryStyle(alert.category);
+    <div className="space-y-3">
+      {groupedAlerts.map((group) => {
+        const style = getCategoryStyle(group.category);
         return (
           <div
-            key={alert.id}
-            className="bg-surface rounded-xl border border-border p-4 hover:border-border-light transition-colors group"
+            key={group.id}
+            className="bg-dash-card rounded-xl border border-dash-border p-4 hover:border-dash-border-light transition-colors group/card"
           >
             <div className="flex items-start gap-3">
-              {/* Severity Icon */}
-              <div className="w-9 h-9 rounded-lg bg-danger/10 flex items-center justify-center shrink-0 mt-0.5">
-                <svg className="w-5 h-5 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
+              {/* Favicon */}
+              <div className="w-10 h-10 rounded-lg bg-surface-3 border border-border flex items-center justify-center shrink-0 overflow-hidden mt-0.5">
+                <img 
+                  src={`https://www.google.com/s2/favicons?domain=${getDomainFromUrl(group.url)}&sz=64`} 
+                  alt="" 
+                  className="w-5 h-5" 
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} 
+                />
               </div>
 
               {/* Content */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-2">
                   <span className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide ${style.bg} ${style.text} border ${style.border}`}>
-                    {alert.category}
+                    {group.category}
                   </span>
-                  <span className="text-[10px] text-text-muted tabular-nums">{formatTime(alert.timestamp)}</span>
+                  <span className="text-[10px] text-dash-text-muted tabular-nums">{formatTime(group.timestamp)}</span>
+                  {group.ids.length > 1 && (
+                    <span className="text-[10px] text-dash-text-faded">({group.ids.length} alerts)</span>
+                  )}
                 </div>
-                <p className="text-xs text-text-secondary mb-1">{alert.reason}</p>
-                <p className="text-[11px] text-text-muted font-mono truncate">
-                  {getDomainFromUrl(alert.url)}
-                </p>
+                
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {group.reasons.map((r: string, i: number) => (
+                    <span key={i} className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium border ${style.bg} ${style.text} ${style.border}`}>
+                      {r}
+                    </span>
+                  ))}
+                </div>
+                
+                <a 
+                  href={group.url} 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  className="text-[11px] text-indigo-400 hover:text-indigo-300 hover:underline truncate block max-w-full" 
+                  title={group.url}
+                >
+                  {getDomainFromUrl(group.url)}
+                </a>
               </div>
 
               {/* Delete button */}
               <button
-                onClick={() => onDelete(alert.id)}
-                className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-surface-3 text-text-muted hover:text-danger transition-all"
+                onClick={() => {
+                  group.ids.forEach((id: string) => onDelete(id));
+                }}
+                className="opacity-0 group-hover/card:opacity-100 p-1.5 rounded-lg hover:bg-dash-card-hover text-dash-text-muted hover:text-danger transition-all shrink-0"
                 title="Dismiss"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

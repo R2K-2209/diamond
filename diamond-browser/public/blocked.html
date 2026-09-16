@@ -262,7 +262,7 @@
     const askBtn = document.getElementById('btn-ask');
     askBtn.addEventListener('click', () => {
       if (window.electronAPI?.requestAccess) {
-        window.electronAPI.requestAccess(url, category);
+        window.electronAPI.requestAccess(url, category, reason);
       }
       askBtn.classList.add('sent');
       askBtn.innerHTML = `

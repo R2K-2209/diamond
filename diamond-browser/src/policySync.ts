@@ -17,7 +17,7 @@ import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 export interface ContentPolicy {
   // Parent-managed block/allow lists (live-updated from dashboard)
   customBlockedDomains: string[];
-  customAllowedDomains: string[];
+  customAllowedDomains: any[]; // Supports old string format or { url, expiry }
 
   // Category toggles (all ON by default for child safety)
   blockAdultContent: boolean;
@@ -158,10 +158,6 @@ export async function initPolicySync(userId: string = 'test-child-user'): Promis
     }
   }
 
-  /* 
-   * UNCOMMENT THIS when Firestore API is enabled in Google Cloud Console:
-   * https://console.developers.google.com/apis/api/firestore.googleapis.com/overview?project=browser-3ae3d
-   *
   const policyDocRef = doc(db, 'policies', userId);
   try {
     const snapshot = await getDoc(policyDocRef);
@@ -198,13 +194,13 @@ export async function initPolicySync(userId: string = 'test-child-user'): Promis
       for (const listener of listeners) {
         try { listener(currentPolicy); } catch (err) { console.error('[PolicySync] Listener error:', err); }
       }
+      console.log('[PolicySync] Policy updated from Firebase!');
     },
     (error) => {
       console.error('[PolicySync] Firestore listener error:', error);
       isInitialized = true;
     }
   );
-  */
 }
 
 /**

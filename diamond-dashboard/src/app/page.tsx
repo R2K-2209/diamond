@@ -12,6 +12,7 @@ import {
   doc,
   collection,
   setDoc,
+  getDoc,
   updateDoc,
   deleteDoc,
   addDoc,
@@ -27,6 +28,16 @@ import AddChildModal from "@/components/AddChildModal";
 import PairDeviceModal from "@/components/PairDeviceModal";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
+
+const guessCategory = (url: string): string => {
+  const u = url.toLowerCase();
+  if (u.includes('youtube') || u.includes('netflix') || u.includes('spotify') || u.includes('primevideo') || u.includes('hotstar')) return 'Entertainment';
+  if (u.includes('roblox') || u.includes('minecraft') || u.includes('miniclip') || u.includes('chess.com') || u.includes('poki')) return 'Gaming';
+  if (u.includes('github') || u.includes('stackoverflow') || u.includes('wikipedia') || u.includes('khanacademy') || u.includes('coursera')) return 'Education';
+  if (u.includes('instagram') || u.includes('facebook') || u.includes('twitter') || u.includes('reddit') || u.includes('discord') || u.includes('whatsapp')) return 'Social Media';
+  if (u.includes('google.com/search') || u.includes('bing.com/search') || u.includes('duckduckgo.com')) return 'Search Engine';
+  return 'Web';
+};
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -59,6 +70,12 @@ export interface AccessRequest {
   status: "PENDING" | "APPROVED" | "DENIED";
 }
 
+export interface AllowedSite {
+  url: string;
+  expiry: number | null;
+  addedAt: number;
+}
+
 // ─── Dashboard Page ─────────────────────────────────────────────
 
 import { type ChildProfile } from "@/components/Sidebar";
@@ -69,8 +86,9 @@ export default function Dashboard() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [alerts, setAlerts] = useState<AlertEntry[]>([]);
   const [requests, setRequests] = useState<AccessRequest[]>([]);
+  const [allowedSites, setAllowedSites] = useState<AllowedSite[]>([]);
   
-  // Child Profile State
+  // Dashboard UI states
   const [childrenProfiles, setChildrenProfiles] = useState<ChildProfile[]>([]);
   const [activeChildId, setActiveChildId] = useState<string | null>(null);
   
@@ -170,6 +188,7 @@ export default function Dashboard() {
     let unsubLogs = () => {};
     let unsubAlerts = () => {};
     let unsubRequests = () => {};
+    let unsubPolicy = () => {};
 
     if (activeChildId && db) {
       try {
@@ -229,6 +248,22 @@ export default function Dashboard() {
           },
           () => {}
         );
+
+        const policyRef = doc(db, "policies", activeChildId);
+        unsubPolicy = onSnapshot(
+          policyRef,
+          (docSnap) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              const allowed: AllowedSite[] = (data.customAllowedDomains || []).map((item: any) => {
+                if (typeof item === 'string') return { url: item, expiry: null, addedAt: Date.now() };
+                return item;
+              });
+              setAllowedSites(allowed);
+            }
+          },
+          () => {}
+        );
       } catch (err) {
         console.error("Firestore Listeners Error:", err);
         setIsLoading(false);
@@ -244,6 +279,7 @@ export default function Dashboard() {
       unsubLogs();
       unsubAlerts();
       unsubRequests();
+      unsubPolicy();
     };
   }, [activeChildId]);
 
@@ -439,17 +475,47 @@ export default function Dashboard() {
   };
 
   // ── Request Handlers ──
-  const handleApproveRequest = async (requestId: string) => {
+  const handleApproveRequest = async (requestId: string, url: string, durationMs: number | null) => {
     setRequests((prev) => prev.map((r) => (r.id === requestId ? { ...r, status: "APPROVED" } : r)));
-    fetch("/api/requests", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: requestId, status: "APPROVED" }),
-    }).catch(() => {});
-
     try {
       await updateDoc(doc(db, "requests", requestId), { status: "APPROVED" });
-    } catch {}
+      
+      if (!activeChildId) return;
+      const policyRef = doc(db, "policies", activeChildId);
+      const docSnap = await getDoc(policyRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const allowed: AllowedSite[] = (data.customAllowedDomains || []).map((item: any) => {
+          if (typeof item === 'string') return { url: item, expiry: null, addedAt: Date.now() };
+          return item;
+        });
+        
+        const existingIndex = allowed.findIndex(a => a.url === url);
+        const newExpiry = durationMs ? Date.now() + durationMs : null;
+        
+        if (existingIndex >= 0) {
+          allowed[existingIndex].expiry = newExpiry;
+          allowed[existingIndex].addedAt = Date.now();
+        } else {
+          allowed.push({ url, expiry: newExpiry, addedAt: Date.now() });
+        }
+        
+        await updateDoc(policyRef, { customAllowedDomains: allowed });
+      }
+    } catch (err) {
+      console.error("Failed to approve request", err);
+    }
+  };
+
+  const handleRevokeAccess = async (url: string) => {
+    if (!activeChildId || !db) return;
+    try {
+      const policyRef = doc(db, "policies", activeChildId);
+      const newAllowed = allowedSites.filter(site => site.url !== url);
+      await updateDoc(policyRef, { customAllowedDomains: newAllowed });
+    } catch (error) {
+      console.error("Failed to revoke access:", error);
+    }
   };
 
   const handleDenyRequest = async (requestId: string) => {
@@ -580,42 +646,145 @@ export default function Dashboard() {
 
   // ── Usage Activity Tab Content ──
   const renderUsageActivityTab = () => (
-    <div className="bg-dash-card rounded-2xl border border-dash-border overflow-hidden">
-      <div className="px-6 py-5 border-b border-dash-border">
-        <h3 className="text-[15px] font-bold text-dash-text">Activity Logs</h3>
-      </div>
-      <div className="overflow-x-auto">
-        <div className="min-w-[800px]">
-          {/* Table Header */}
-          <div className="grid grid-cols-7 gap-4 px-6 py-3 text-[11px] font-bold text-dash-text-faded uppercase tracking-wider border-b border-dash-border">
-            <span>Time</span>
-            <span>Child</span>
-            <span>Device</span>
-            <span className="col-span-2">Websites/App</span>
-            <span>Category</span>
-            <span>Action</span>
+    <div className="flex flex-col gap-6 h-full">
+      {/* Live Access Panel */}
+      {allowedSites.length > 0 && (
+        <div className="bg-dash-card rounded-2xl border border-dash-border overflow-hidden shrink-0">
+          <div className="px-6 py-4 border-b border-dash-border flex justify-between items-center bg-indigo-500/5">
+            <div>
+              <h3 className="text-[15px] font-bold text-indigo-400">Live Access Granted</h3>
+              <p className="text-[12px] text-dash-text-faded mt-0.5">Websites currently unblocked by parent permission.</p>
+            </div>
           </div>
-          {/* Table Body */}
-          {logs.length === 0 ? (
-            <div className="flex items-center justify-center h-48 text-[13px] text-dash-text-faded">No activity logs yet</div>
-          ) : (
-            <div className="divide-y divide-[#1e222b]">
-          {logs.map((log) => {
-            let domain = log.url;
-            try { domain = new URL(log.url).hostname.replace("www.", ""); } catch {}
-            return (
-              <div key={log.id} className="grid grid-cols-7 gap-4 px-6 py-3.5 text-[13px] hover:bg-dash-card-hover transition-colors">
-                <span className="text-dash-text-muted tabular-nums">{log.timestamp?.toDate ? log.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</span>
-                <span className="text-dash-text font-medium">{childrenProfiles.find(c => c.id === activeChildId)?.name || '—'}</span>
-                <span className="text-dash-text-muted">Browser</span>
-                <span className="col-span-2 text-dash-text truncate">{domain}</span>
-                <span className="text-dash-text-muted">Web</span>
-                <span className={`font-medium ${log.safe ? 'text-emerald-400' : 'text-rose-400'}`}>{log.safe ? 'Allowed' : 'Blocked'}</span>
-              </div>
-            );
-          })}
+          <div className="p-4 flex flex-wrap gap-3">
+            {allowedSites.map(site => {
+              const isExpired = site.expiry !== null && Date.now() > site.expiry;
+              if (isExpired) return null;
+              
+              const remainingHours = site.expiry ? Math.max(0, Math.floor((site.expiry - Date.now()) / 3600000)) : null;
+              
+              return (
+                <div key={site.url} className="flex items-center gap-3 bg-surface border border-indigo-500/20 rounded-xl px-4 py-2.5">
+                  <img src={`https://www.google.com/s2/favicons?domain=${site.url}&sz=32`} className="w-5 h-5 rounded" alt="" />
+                  <div className="flex flex-col min-w-[120px]">
+                    <span className="text-[13px] font-bold text-dash-text">{site.url}</span>
+                    <span className="text-[10px] text-indigo-400">
+                      {site.expiry === null ? 'Forever' : `${remainingHours}h remaining`}
+                    </span>
+                  </div>
+                  <button 
+                    onClick={() => handleRevokeAccess(site.url)}
+                    className="ml-2 text-[11px] font-bold text-rose-400 hover:bg-rose-400/10 px-2.5 py-1.5 rounded-lg transition-colors border border-rose-400/20"
+                  >
+                    Revoke
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
+
+      {/* Activity Logs Table */}
+      <div className="bg-dash-card rounded-2xl border border-dash-border overflow-hidden flex flex-col min-h-0 flex-1">
+        <div className="px-6 py-5 border-b border-dash-border shrink-0">
+          <h3 className="text-[15px] font-bold text-dash-text">Activity Logs</h3>
+        </div>
+        <div className="overflow-auto custom-scrollbar flex-1">
+          <div className="min-w-[800px]">
+            {/* Table Header */}
+            <div className="sticky top-0 z-10 bg-dash-card grid grid-cols-6 gap-4 px-6 py-3 text-[11px] font-bold text-dash-text-faded uppercase tracking-wider border-b border-dash-border">
+              <span>Time</span>
+              <span>Child</span>
+              <span className="col-span-2">Websites/App</span>
+              <span>Category</span>
+              <span>Action</span>
+            </div>
+            {/* Table Body */}
+            {logs.length === 0 ? (
+              <div className="flex items-center justify-center h-48 text-[13px] text-dash-text-faded">No activity logs yet</div>
+            ) : (
+              <div className="divide-y divide-[#1e222b]">
+            {logs.filter((log, i, arr) => {
+              // Ignore internal/local pages
+              if (log.url.includes('localhost') || log.url.includes('127.0.0.1') || log.url.includes('blocked.html') || log.url.startsWith('diamond://')) {
+                return false;
+              }
+              
+              // Check if we've seen this exact same URL in a newer log within a 5-minute window
+              const currentT = log.timestamp?.seconds || 0;
+              for (let j = 0; j < i; j++) {
+                 const newerLog = arr[j];
+                 if (log.url === newerLog.url) {
+                   const newerT = newerLog.timestamp?.seconds || 0;
+                   if (Math.abs(newerT - currentT) < 300) {
+                     return false; // Found a duplicate URL within 5 minutes, hide this older one
+                   }
+                 }
+              }
+              return true;
+            }).map((log) => {
+              let domain = log.url;
+              let displayUrl = domain;
+              try { 
+                const urlObj = new URL(log.url);
+                domain = urlObj.hostname.replace("www.", "");
+                displayUrl = domain;
+                
+                // Parse Google Searches
+                if (domain.includes("google.com") && urlObj.pathname === "/search") {
+                  const query = urlObj.searchParams.get("q");
+                  if (query) {
+                    displayUrl = `Search: ${query}`;
+                  }
+                }
+              } catch {}
+              
+              // Check if currently active/live
+              const isLive = allowedSites.some(s => 
+                (log.url.includes(s.url) || s.url.includes(domain)) && 
+                (s.expiry === null || Date.now() < s.expiry)
+              );
+              
+              // Check if content was blurred on this page (within 10 mins of log)
+              const hasBlurredContent = alerts.some(a => 
+                (a.type === 'ALLOWED_SITE_FLAG' || a.type === 'CONTENT_FLAGGED_SILENT') && 
+                a.url.includes(domain) &&
+                Math.abs((a.timestamp?.seconds || 0) - (log.timestamp?.seconds || 0)) < 600
+              );
+              
+              const rowColor = (isLive || hasBlurredContent) ? 'bg-yellow-500/5 hover:bg-yellow-500/10' : 'hover:bg-dash-card-hover';
+              
+              return (
+                <div key={log.id} className={`grid grid-cols-6 gap-4 px-6 py-3.5 text-[13px] transition-colors ${rowColor}`}>
+                  <span className="text-dash-text-muted tabular-nums flex flex-col justify-center">
+                    {log.timestamp?.toDate ? log.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                  </span>
+                  <span className="text-dash-text font-medium flex items-center">{childrenProfiles.find(c => c.id === activeChildId)?.name || '—'}</span>
+                  <span className="col-span-2 text-dash-text truncate flex items-center gap-2">
+                    <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`} alt="" className="w-4 h-4 rounded shrink-0" />
+                    <a href={log.url} target="_blank" rel="noreferrer" className="hover:text-indigo-400 hover:underline truncate" title={log.url}>{displayUrl}</a>
+                    {isLive && (
+                      <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 shrink-0">
+                        LIVE
+                      </span>
+                    )}
+                    {!isLive && hasBlurredContent && (
+                      <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-warning/20 text-warning border border-warning/30 shrink-0 whitespace-nowrap" title="Harmful content was hidden on this page">
+                        CONTENT HIDDEN
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-dash-text-muted flex items-center">{guessCategory(log.url)}</span>
+                  <span className={`font-medium flex items-center ${log.safe ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {log.safe ? 'Allowed' : 'Blocked'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+          </div>
         </div>
       </div>
     </div>
@@ -721,16 +890,25 @@ export default function Dashboard() {
               )}
               
               {activeTab === "reports" && (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-6 h-full">
+                  <div className="flex items-center justify-between shrink-0">
                     <div>
                       <h2 className="text-[18px] font-bold text-dash-text tracking-tight">Security Reports & Requests</h2>
                       <p className="text-[13px] text-dash-text-faded mt-1">Review blocked activity and manage access requests for {childrenProfiles.find(c => c.id === activeChildId)?.name || 'your child'}.</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
-                    <AlertsFeed alerts={alerts} onDelete={handleDeleteAlert} />
-                    <AccessRequests requests={requests} onApprove={handleApproveRequest} onDeny={handleDenyRequest} />
+                  <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
+                      <AlertsFeed alerts={alerts} onDelete={handleDeleteAlert} />
+                      <AccessRequests 
+                        requests={requests} 
+                        activeAllowedDomains={allowedSites}
+                        alerts={alerts}
+                        onApprove={handleApproveRequest} 
+                        onDeny={handleDenyRequest}
+                        onRevoke={handleRevokeAccess}
+                      />
+                    </div>
                   </div>
                 </div>
               )}

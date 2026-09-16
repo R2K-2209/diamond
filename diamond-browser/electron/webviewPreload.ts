@@ -31,6 +31,7 @@
 import { ipcRenderer, contextBridge, webFrame } from 'electron';
 import * as tf from '@tensorflow/tfjs';
 import * as nsfwjs from 'nsfwjs';
+import * as toxicity from '@tensorflow-models/toxicity';
 import {
   EXPLICIT_KEYWORDS,
   DRUG_KEYWORDS,
@@ -43,9 +44,17 @@ import {
   YOUTUBE_TITLE_PATTERNS,
   YOUTUBE_CARD_SELECTORS,
   HIGH_CONFIDENCE_TOKENS,
+  STRICT_ONLY_KEYWORDS,
   IMAGE_CONFIG,
   DIAMOND_CSS,
 } from '../src/shieldDictionary';
+
+// Flag to disable blocking (silent mode) for explicitly allowed sites
+let isExplicitlyAllowed = false;
+
+ipcRenderer.on('set-explicitly-allowed', (_event, allowed: boolean) => {
+  isExplicitlyAllowed = allowed;
+});
 
 // Destructure image config for convenience
 const {
@@ -171,8 +180,18 @@ const ALL_RESTRICTED_KEYWORDS = new Set([
   ...GAMBLING_TOKENS
 ]);
 
-const explicitRegex = new RegExp(
+const STRICT_KEYWORDS = new Set([
+  ...Array.from(ALL_RESTRICTED_KEYWORDS),
+  ...STRICT_ONLY_KEYWORDS
+]);
+
+const moderateRegex = new RegExp(
   '\\b(' + Array.from(ALL_RESTRICTED_KEYWORDS).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\b',
+  'i'
+);
+
+const strictRegex = new RegExp(
+  '\\b(' + Array.from(STRICT_KEYWORDS).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\b',
   'i'
 );
 
@@ -193,7 +212,8 @@ function checkTextContent(text: string): { match: string; severity: 'explicit' |
   const lower = text.toLowerCase();
 
   // Check explicit keywords first (highest priority)
-  const explicitMatch = lower.match(explicitRegex);
+  const activeRegex = currentPolicyMode === 'strict' ? strictRegex : moderateRegex;
+  const explicitMatch = lower.match(activeRegex);
   if (explicitMatch) {
     return { match: explicitMatch[0], severity: 'explicit' };
   }
@@ -233,6 +253,9 @@ function findYouTubeCardParent(element: Element): Element | null {
   return null;
 }
 
+// Track sent alerts to prevent IPC spam
+const sentAlerts = new Set<string>();
+
 /**
  * Scan a single element's text and redact if inappropriate.
  */
@@ -249,9 +272,35 @@ function scanTextElement(element: Element): void {
   if (element.classList?.contains(DIAMOND_CSS.hiddenElement)) return;
 
   const result = checkTextContent(text);
-  if (!result) return;
+  if (result) {
+    applyTextRedaction(element, result.category, result.match, text);
+    return;
+  }
 
+  // If dictionary didn't catch it, queue for ML Toxicity analysis
+  queueTextForMLAnalysis(element, text);
+}
+
+/**
+ * Applies the actual blurring/hiding logic and emits the IPC alert.
+ */
+function applyTextRedaction(element: Element, category: string, reason: string, originalText: string): void {
   const isYouTube = window.location.hostname.includes('youtube.com');
+
+  if (isExplicitlyAllowed) {
+    // Silent Mode: Do not blur or hide, just report the keyword
+    const alertKey = `${category}:${reason}`;
+    if (!sentAlerts.has(alertKey)) {
+      sentAlerts.add(alertKey);
+      ipcRenderer.sendToHost('content-flagged-silent', {
+        url: window.location.href,
+        category,
+        reason,
+        layer: 'content-scan-silent'
+      });
+    }
+    return;
+  }
 
   if (isYouTube) {
     // On YouTube, try to hide the entire video card
@@ -259,7 +308,18 @@ function scanTextElement(element: Element): void {
     if (card && !scannedElements.has(card)) {
       scannedElements.add(card);
       card.classList.add(DIAMOND_CSS.hiddenElement);
-      console.log(`[Diamond L4] Hidden YouTube card: "${text.substring(0, 60)}..." (matched: "${result.match}")`);
+      console.log(`[Diamond L4] Hidden YouTube card: "${originalText.substring(0, 60)}..." (matched: "${reason}")`);
+      
+      const alertKey = `Content Hidden:${reason}`;
+      if (!sentAlerts.has(alertKey)) {
+        sentAlerts.add(alertKey);
+        ipcRenderer.sendToHost('content-flagged-silent', {
+          url: window.location.href,
+          category: 'Content Hidden',
+          reason,
+          layer: 'content-scan-hidden'
+        });
+      }
       return;
     }
   }
@@ -267,7 +327,139 @@ function scanTextElement(element: Element): void {
   // For non-YouTube or if no card found, redact the specific element using a blur effect
   element.classList.add(DIAMOND_CSS.redactedText);
 
-  console.log(`[Diamond L4] Redacted: "${text.substring(0, 60)}..." (matched: "${result.match}")`);
+  console.log(`[Diamond L4] Redacted: "${originalText.substring(0, 60)}..." (matched: "${reason}")`);
+  
+  const alertKey = `Content Blurred:${reason}`;
+  if (!sentAlerts.has(alertKey)) {
+    sentAlerts.add(alertKey);
+    ipcRenderer.sendToHost('content-flagged-silent', {
+      url: window.location.href,
+      category: 'Content Blurred',
+      reason,
+      layer: 'content-scan-redacted'
+    });
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ML TOXICITY TEXT SCANNER
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+let toxicityModel: toxicity.ToxicityClassifier | null = null;
+let modelLoadingTox = false;
+const toxicityCache = new Map<string, string>(); // 'safe' | 'sexual_explicit' | 'threat' | 'obscene'
+const mlTextQueue: { element: Element; text: string }[] = [];
+let mlProcessingTimer: any = null;
+
+const MAX_CACHE_SIZE = 1000;
+
+async function loadToxicityModel() {
+  if (toxicityModel) return toxicityModel;
+  if (modelLoadingTox) return null;
+  
+  modelLoadingTox = true;
+  console.log('[Diamond L4] Loading ML Toxicity model for semantic scanning...');
+  
+  try {
+    await tf.ready();
+    // Load toxicity model with 0.70 threshold for higher sensitivity
+    toxicityModel = await toxicity.load(0.70, ['sexual_explicit', 'threat', 'obscene']);
+    console.log('[Diamond L4] ML Toxicity model loaded successfully.');
+    modelLoadingTox = false;
+    processMLTextQueue();
+    return toxicityModel;
+  } catch (err) {
+    console.warn('[Diamond L4] Failed to load Toxicity model:', err);
+    modelLoadingTox = false;
+    return null;
+  }
+}
+
+function queueTextForMLAnalysis(element: Element, text: string) {
+  // Only scan substantial text to save CPU
+  if (text.length < 15 || text.length > 1000) return;
+  
+  mlTextQueue.push({ element, text });
+  
+  if (!toxicityModel) {
+    loadToxicityModel();
+  } else if (!mlProcessingTimer) {
+    // Debounce processing to avoid blocking main thread during scrolling
+    mlProcessingTimer = setTimeout(processMLTextQueue, 800);
+  }
+}
+
+async function processMLTextQueue() {
+  if (!toxicityModel || mlTextQueue.length === 0) {
+    mlProcessingTimer = null;
+    return;
+  }
+
+  // Take a batch of up to 10 elements to process
+  const batch = mlTextQueue.splice(0, 10);
+  
+  // Dedup and check cache
+  const textsToAnalyze: string[] = [];
+  const elementMap = new Map<string, Element[]>();
+  
+  for (const item of batch) {
+    const cached = toxicityCache.get(item.text);
+    if (cached) {
+      if (cached !== 'safe') {
+        applyTextRedaction(item.element, 'ML Context Filter', cached, item.text);
+      }
+    } else {
+      if (!elementMap.has(item.text)) {
+        elementMap.set(item.text, []);
+        textsToAnalyze.push(item.text);
+      }
+      elementMap.get(item.text)!.push(item.element);
+    }
+  }
+
+  if (textsToAnalyze.length > 0) {
+    try {
+      // Run batch prediction
+      const predictions = await toxicityModel.classify(textsToAnalyze);
+      
+      // Predictions is an array of objects for each label
+      for (let i = 0; i < textsToAnalyze.length; i++) {
+        const text = textsToAnalyze[i];
+        let flaggedReason = 'safe';
+        
+        for (const pred of predictions) {
+          if (pred.results[i].match === true) {
+            flaggedReason = pred.label; // e.g. 'sexual_explicit'
+            break;
+          }
+        }
+        
+        
+        if (toxicityCache.size > MAX_CACHE_SIZE) {
+          // Naive FIFO eviction: delete the first (oldest) key
+          const firstKey = toxicityCache.keys().next().value;
+          if (firstKey) toxicityCache.delete(firstKey);
+        }
+        toxicityCache.set(text, flaggedReason);
+        
+        if (flaggedReason !== 'safe') {
+          const elements = elementMap.get(text) || [];
+          for (const el of elements) {
+            applyTextRedaction(el, 'ML Context Filter', flaggedReason.replace('_', ' ').toUpperCase(), text);
+          }
+        }
+      }
+    } catch (err) {
+      // Silently ignore classification errors to not break the page
+    }
+  }
+
+  // If there are more items, schedule next batch
+  if (mlTextQueue.length > 0) {
+    mlProcessingTimer = setTimeout(processMLTextQueue, 150);
+  } else {
+    mlProcessingTimer = null;
+  }
 }
 
 /**
@@ -427,15 +619,43 @@ async function classifyImage(img: HTMLImageElement): Promise<void> {
     }
 
     if (dominated) {
-      img.classList.add(DIAMOND_CSS.blurredImage);
-      imageCache.set(key, 'blocked');
+      if (isExplicitlyAllowed) {
+        // Silent Mode
+        const alertKey = `Explicit Image:ML Image Analysis`;
+        if (!sentAlerts.has(alertKey)) {
+          sentAlerts.add(alertKey);
+          ipcRenderer.sendToHost('content-flagged-silent', {
+            url: window.location.href,
+            category: 'Explicit Image',
+            reason: 'ML Image Analysis',
+            layer: 'image-scan-silent'
+          });
+        }
+      } else {
+        img.classList.add(DIAMOND_CSS.blurredImage);
+        imageCache.set(key, 'blocked');
 
-      // On YouTube, try hiding the entire video card
-      const isYouTube = window.location.hostname.includes('youtube.com');
-      if (isYouTube) {
-        const card = findYouTubeCardParent(img);
-        if (card) {
-          card.classList.add(DIAMOND_CSS.hiddenElement);
+        // On YouTube, try hiding the entire video card
+        const isYouTube = window.location.hostname.includes('youtube.com');
+        let hiddenCard = false;
+        if (isYouTube) {
+          const card = findYouTubeCardParent(img);
+          if (card) {
+            card.classList.add(DIAMOND_CSS.hiddenElement);
+            hiddenCard = true;
+          }
+        }
+        
+        const category = hiddenCard ? 'Content Hidden' : 'Content Blurred';
+        const alertKey = `${category}:ML Image Analysis`;
+        if (!sentAlerts.has(alertKey)) {
+          sentAlerts.add(alertKey);
+          ipcRenderer.sendToHost('content-flagged-silent', {
+            url: window.location.href,
+            category: category,
+            reason: 'ML Image Analysis',
+            layer: hiddenCard ? 'image-scan-hidden' : 'image-scan-blurred'
+          });
         }
       }
     } else {
@@ -789,26 +1009,52 @@ function processPendingMutations(): void {
 // INITIALIZATION
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// Inject Diamond Shield CSS immediately
-injectDiamondStyles();
+const currentHostname = window.location.hostname;
+const currentUrl = window.location.href;
 
-// Run on DOMContentLoaded
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(runFullPageScan, 300);
-    setTimeout(setupMutationObserver, 500);
-  });
-} else {
-  setTimeout(runFullPageScan, 300);
-  setTimeout(setupMutationObserver, 500);
+let currentPolicyMode = 'strict';
+try {
+  currentPolicyMode = ipcRenderer.sendSync('get-policy-mode-sync');
+} catch (e) {
+  console.warn('[Diamond Shield] IPC error getting policy mode:', e);
 }
 
-// Run again on full page load (for SPAs that render late)
-window.addEventListener('load', () => {
-  setTimeout(() => {
-    runFullPageScan();
-  }, 800);
-});
+// Do not run the scanner on our own internal pages or dashboard
+if (currentHostname === 'localhost' || currentHostname === '127.0.0.1' || currentUrl.includes('blocked.html') || currentUrl.startsWith('diamond://')) {
+  console.log('[Diamond Shield] Skipping content scanning for internal/local page.');
+} else {
+  // Check if domain is explicitly allowed by parent (Layer 2 Policy)
+  try {
+    isExplicitlyAllowed = ipcRenderer.sendSync('is-domain-allowed-sync', currentHostname);
+  } catch (e) {
+    console.warn('[Diamond Shield] IPC error checking allowed domains:', e);
+  }
+
+  if (isExplicitlyAllowed) {
+    console.log('[Diamond Shield] Domain explicitly allowed by parent. Running in SILENT mode.');
+  }
+
+  // Inject Diamond Shield CSS immediately
+  injectDiamondStyles();
+
+  // Run on DOMContentLoaded
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(runFullPageScan, 300);
+      setTimeout(setupMutationObserver, 500);
+    });
+  } else {
+    setTimeout(runFullPageScan, 300);
+    setTimeout(setupMutationObserver, 500);
+  }
+
+  // Run again on full page load (for SPAs that render late)
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      runFullPageScan();
+    }, 800);
+  });
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CONTEXT BRIDGE: Expose safe API for blocked.html
@@ -834,8 +1080,8 @@ try {
 
 try {
   contextBridge.exposeInMainWorld('electronAPI', {
-    requestAccess: (url: string, category?: string) => {
-      ipcRenderer.sendToHost('request-access', { url, category });
+    requestAccess: (url: string, category?: string, reason?: string) => {
+      ipcRenderer.sendToHost('request-access', { url, category, reason });
     },
     goBackToSafety: () => {
       ipcRenderer.sendToHost('go-back-to-safety', {});
@@ -844,8 +1090,8 @@ try {
 } catch (e) {
   // Fallback for non-isolated contexts
   (window as any).electronAPI = {
-    requestAccess: (url: string, category?: string) => {
-      ipcRenderer.sendToHost('request-access', { url, category });
+    requestAccess: (url: string, category?: string, reason?: string) => {
+      ipcRenderer.sendToHost('request-access', { url, category, reason });
     },
     goBackToSafety: () => {
       ipcRenderer.sendToHost('go-back-to-safety', {});
