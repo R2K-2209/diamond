@@ -33,18 +33,11 @@ import * as tf from '@tensorflow/tfjs';
 import * as nsfwjs from 'nsfwjs';
 import * as toxicity from '@tensorflow-models/toxicity';
 import {
-  EXPLICIT_KEYWORDS,
-  DRUG_KEYWORDS,
-  VIOLENCE_KEYWORDS,
-  SELF_HARM_KEYWORDS,
-  CRIME_KEYWORDS,
-  HATE_KEYWORDS,
-  GAMBLING_TOKENS,
-  SUGGESTIVE_PHRASES,
+  MODERATE_TRIE,
+  STRICT_TRIE,
   YOUTUBE_TITLE_PATTERNS,
   YOUTUBE_CARD_SELECTORS,
   HIGH_CONFIDENCE_TOKENS,
-  STRICT_ONLY_KEYWORDS,
   IMAGE_CONFIG,
   DIAMOND_CSS,
 } from '../src/shieldDictionary';
@@ -163,37 +156,41 @@ function injectDiamondStyles(): void {
 // LAYER 4: REAL-TIME DOM TEXT SCANNER
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// Build a single regex from all suggestive phrases for fast matching
-const suggestiveRegex = new RegExp(
-  '\\b(' + SUGGESTIVE_PHRASES.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\b',
-  'i'
-);
-
-// Combine all explicit and harmful keywords into one massive blocklist
-const ALL_RESTRICTED_KEYWORDS = new Set([
-  ...EXPLICIT_KEYWORDS,
-  ...DRUG_KEYWORDS,
-  ...VIOLENCE_KEYWORDS,
-  ...SELF_HARM_KEYWORDS,
-  ...CRIME_KEYWORDS,
-  ...HATE_KEYWORDS,
-  ...GAMBLING_TOKENS
-]);
-
-const STRICT_KEYWORDS = new Set([
-  ...Array.from(ALL_RESTRICTED_KEYWORDS),
-  ...STRICT_ONLY_KEYWORDS
-]);
-
-const moderateRegex = new RegExp(
-  '\\b(' + Array.from(ALL_RESTRICTED_KEYWORDS).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\b',
-  'i'
-);
-
-const strictRegex = new RegExp(
-  '\\b(' + Array.from(STRICT_KEYWORDS).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\b',
-  'i'
-);
+function searchAhoCorasick(text: string, states: any[]): { match: string; severity: 'explicit' | 'suggestive' } | null {
+  let currentState = 0;
+  const lowerText = text.toLowerCase();
+  
+  for (let i = 0; i < lowerText.length; i++) {
+    const char = lowerText[i];
+    while (currentState > 0 && states[currentState].next[char] === undefined) {
+      currentState = states[currentState].fail;
+    }
+    if (states[currentState].next[char] !== undefined) {
+      currentState = states[currentState].next[char];
+    } else {
+      currentState = 0;
+    }
+    
+    if (states[currentState].output.length > 0) {
+      // We found a match, but is it a whole word?
+      for (const out of states[currentState].output) {
+        const b64Word = out.word;
+        const decodedWord = atob(b64Word); // Decode base64 word
+        const startIndex = i - decodedWord.length + 1;
+        const beforeChar = startIndex > 0 ? lowerText[startIndex - 1] : ' ';
+        const afterChar = i + 1 < lowerText.length ? lowerText[i + 1] : ' ';
+        
+        const isWordBoundaryBefore = !/[a-z0-9]/.test(beforeChar);
+        const isWordBoundaryAfter = !/[a-z0-9]/.test(afterChar);
+        
+        if (isWordBoundaryBefore && isWordBoundaryAfter) {
+          return { match: decodedWord, severity: out.severity }; // return decoded word for logging
+        }
+      }
+    }
+  }
+  return null;
+}
 
 const youtubePatternRegex = new RegExp(
   '(' + YOUTUBE_TITLE_PATTERNS.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')',
@@ -211,17 +208,11 @@ function checkTextContent(text: string): { match: string; severity: 'explicit' |
   if (!text || text.length < 3) return null;
   const lower = text.toLowerCase();
 
-  // Check explicit keywords first (highest priority)
-  const activeRegex = currentPolicyMode === 'strict' ? strictRegex : moderateRegex;
-  const explicitMatch = lower.match(activeRegex);
-  if (explicitMatch) {
-    return { match: explicitMatch[0], severity: 'explicit' };
-  }
-
-  // Check suggestive phrases
-  const suggestiveMatch = lower.match(suggestiveRegex);
-  if (suggestiveMatch) {
-    return { match: suggestiveMatch[0], severity: 'suggestive' };
+  // 1. Check Aho-Corasick Dictionary
+  const activeTrie = currentPolicyMode === 'strict' ? STRICT_TRIE : MODERATE_TRIE;
+  const acMatch = searchAhoCorasick(text, activeTrie);
+  if (acMatch) {
+    return acMatch;
   }
 
   // Check YouTube-specific patterns
@@ -376,17 +367,10 @@ async function loadToxicityModel() {
 }
 
 function queueTextForMLAnalysis(element: Element, text: string) {
-  // Only scan substantial text to save CPU
-  if (text.length < 15 || text.length > 1000) return;
-  
-  mlTextQueue.push({ element, text });
-  
-  if (!toxicityModel) {
-    loadToxicityModel();
-  } else if (!mlProcessingTimer) {
-    // Debounce processing to avoid blocking main thread during scrolling
-    mlProcessingTimer = setTimeout(processMLTextQueue, 800);
-  }
+  // DISABLED: The TensorFlow Toxicity model is too heavy for real-time DOM scanning 
+  // and causes severe video playback and hover lag by blocking the main thread.
+  // The Regex dictionary filters in checkTextContent() are sufficient.
+  return;
 }
 
 async function processMLTextQueue() {
@@ -571,8 +555,8 @@ async function classifyImage(img: HTMLImageElement): Promise<void> {
     return;
   }
 
-  // Respect concurrent scan limit
-  if (activeScanCount >= MAX_CONCURRENT_SCANS) {
+  // Respect concurrent scan limit (Hardcode to 1 for smooth video playback)
+  if (activeScanCount >= 1) {
     scanQueue.push(img);
     return;
   }
@@ -580,6 +564,9 @@ async function classifyImage(img: HTMLImageElement): Promise<void> {
   activeScanCount++;
 
   try {
+    // Yield to browser's render loop so fast scrolling doesn't checkerboard
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     // Classify the image
     let predictions;
     try {
@@ -674,7 +661,7 @@ async function classifyImage(img: HTMLImageElement): Promise<void> {
  * Process the next image in the scan queue.
  */
 function processQueue(): void {
-  while (scanQueue.length > 0 && activeScanCount < MAX_CONCURRENT_SCANS) {
+  while (scanQueue.length > 0 && activeScanCount < 1) {
     const img = scanQueue.shift();
     if (img && img.isConnected) {
       classifyImage(img);
@@ -688,6 +675,7 @@ function processQueue(): void {
  */
 let imageObserver: IntersectionObserver | null = null;
 const observedImages = new WeakSet<Element>();
+const intersectionTimeouts = new WeakMap<Element, ReturnType<typeof setTimeout>>();
 
 function setupImageObserver(): void {
   if (imageObserver) return;
@@ -697,14 +685,27 @@ function setupImageObserver(): void {
       for (const entry of entries) {
         if (entry.isIntersecting && entry.target instanceof HTMLImageElement) {
           const img = entry.target;
-          // Only scan if the image has loaded
-          if (img.complete && img.naturalWidth > 0) {
-            classifyImage(img);
-          } else {
-            img.addEventListener('load', () => classifyImage(img), { once: true });
+          if (!intersectionTimeouts.has(img)) {
+            // Wait 300ms before scanning to see if it's still intersecting (prevents lag on fast scroll)
+            const timeoutId = setTimeout(() => {
+              // Only scan if the image has loaded
+              if (img.complete && img.naturalWidth > 0) {
+                classifyImage(img);
+              } else {
+                img.addEventListener('load', () => classifyImage(img), { once: true });
+              }
+              // Stop observing after first intersection
+              imageObserver?.unobserve(img);
+              intersectionTimeouts.delete(img);
+            }, 300);
+            intersectionTimeouts.set(img, timeoutId);
           }
-          // Stop observing after first intersection
-          imageObserver?.unobserve(img);
+        } else if (!entry.isIntersecting && entry.target instanceof HTMLImageElement) {
+          const existingTimeout = intersectionTimeouts.get(entry.target);
+          if (existingTimeout) {
+            clearTimeout(existingTimeout);
+            intersectionTimeouts.delete(entry.target);
+          }
         }
       }
     },
@@ -721,7 +722,11 @@ function setupImageObserver(): void {
 function observeImagesInSubtree(root: Element | Document): void {
   if (!imageObserver) setupImageObserver();
 
-  const images = root.querySelectorAll('img');
+  const images = Array.from(root.querySelectorAll('img'));
+  if (root instanceof HTMLImageElement) {
+    images.push(root);
+  }
+
   for (const img of images) {
     if (observedImages.has(img)) continue;
     observedImages.add(img);
@@ -732,7 +737,7 @@ function observeImagesInSubtree(root: Element | Document): void {
     // Check cache immediately
     const cached = imageCache.get(key);
     if (cached === 'blocked') {
-      img.classList.add(DIAMOND_CSS.BLURRED_IMAGE);
+      img.classList.add(DIAMOND_CSS.blurredImage);
       continue;
     }
     if (cached === 'safe') continue;
@@ -742,10 +747,12 @@ function observeImagesInSubtree(root: Element | Document): void {
   }
 
   // Also check for background images on divs (YouTube uses these for thumbnails)
-  const bgElements = root.querySelectorAll('[style*="background-image"]');
-  for (const el of bgElements) {
-    // We can't easily classify background images with nsfwjs without creating
-    // a temp img element. For now, skip — the text filter catches most of these.
+  if (!(root instanceof HTMLImageElement) && root.querySelectorAll) {
+    const bgElements = root.querySelectorAll('[style*="background-image"]');
+    for (const el of bgElements) {
+      // We can't easily classify background images with nsfwjs without creating
+      // a temp img element. For now, skip — the text filter catches most of these.
+    }
   }
 }
 
@@ -977,30 +984,46 @@ function processPendingMutations(): void {
   const mutations = pendingMutations;
   pendingMutations = [];
 
+  const addedElements = new Set<HTMLElement>();
+  const modifiedImages = new Set<HTMLImageElement>();
+
   for (const mutation of mutations) {
     if (mutation.type === 'attributes' && (mutation.attributeName === 'src' || mutation.attributeName === 'srcset') && mutation.target instanceof HTMLImageElement) {
       // Image source changed (e.g. lazy loaded or replaced placeholder)
-      const img = mutation.target;
-      if (img.complete && img.naturalWidth > 0) {
-        classifyImage(img);
-      } else {
-        img.addEventListener('load', () => classifyImage(img), { once: true });
-      }
+      modifiedImages.add(mutation.target);
     } else if (mutation.type === 'childList') {
       for (const node of mutation.addedNodes) {
-        if (!(node instanceof HTMLElement)) continue;
-
-        // Layer 4: Scan new text elements
-        scanTextElement(node);
-        scanSubtreeForText(node);
-
-        // Layer 5: Observe new images
-        if (node instanceof HTMLImageElement) {
-          observeImagesInSubtree(node.parentElement || document);
-        } else {
-          observeImagesInSubtree(node);
+        if (node instanceof HTMLElement) {
+          addedElements.add(node);
         }
       }
+    }
+  }
+
+  for (const img of modifiedImages) {
+    if (img.complete && img.naturalWidth > 0) {
+      classifyImage(img);
+    } else {
+      img.addEventListener('load', () => classifyImage(img), { once: true });
+    }
+  }
+
+  if (addedElements.size > 0) {
+    // Filter out elements that are children of other added elements in this batch
+    // to avoid redundant subtree scanning
+    const topLevelElements = Array.from(addedElements).filter(el => {
+      let parent = el.parentElement;
+      while (parent) {
+        if (addedElements.has(parent)) return false;
+        parent = parent.parentElement;
+      }
+      return true;
+    });
+
+    for (const node of topLevelElements) {
+      scanTextElement(node);
+      scanSubtreeForText(node);
+      observeImagesInSubtree(node);
     }
   }
 }

@@ -6,7 +6,7 @@ import { db } from '@/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const DIAMOND_DIR = path.join(os.homedir(), '.diamond');
-const POLICY_FILE = path.join(DIAMOND_DIR, 'policy.json');
+const getPolicyFile = (childId: string) => path.join(DIAMOND_DIR, `policy_${childId}.json`);
 
 const DEFAULT_POLICY = {
   customBlockedDomains: [],
@@ -52,7 +52,11 @@ function ensureDir() {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const childId = searchParams.get('childId') || 'test-child-user';
+  const POLICY_FILE = getPolicyFile(childId);
+
   ensureDir();
   try {
     if (fs.existsSync(POLICY_FILE)) {
@@ -75,6 +79,10 @@ export async function POST(request: Request) {
   ensureDir();
   try {
     const updates = await request.json();
+    const childId = updates.childId || 'test-child-user';
+    delete updates.childId;
+    
+    const POLICY_FILE = getPolicyFile(childId);
 
     // Read existing
     let currentPolicy = { ...DEFAULT_POLICY };
@@ -94,7 +102,7 @@ export async function POST(request: Request) {
     fs.writeFileSync(POLICY_FILE, JSON.stringify(newPolicy, null, 2), 'utf8');
 
     // Also attempt to push to Firestore in background
-    setDoc(doc(db, 'policies', 'test-child-user'), {
+    setDoc(doc(db, 'policies', childId), {
       ...newPolicy,
       updatedAt: serverTimestamp(),
     }, { merge: true }).catch(() => {

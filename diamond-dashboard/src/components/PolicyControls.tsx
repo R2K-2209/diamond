@@ -126,16 +126,17 @@ const MODE_OPTIONS = [
   },
 ];
 
-export default function PolicyControls() {
+export default function PolicyControls({ childId, triggerAuth }: { childId?: string, triggerAuth?: (action: () => void) => void }) {
   const [policy, setPolicy] = useState<ContentPolicy>(DEFAULT_POLICY);
   const [isLoaded, setIsLoaded] = useState(false);
   const [newBlockedDomain, setNewBlockedDomain] = useState("");
   const [newAllowedDomain, setNewAllowedDomain] = useState("");
 
-  const policyDocRef = doc(db, "policies", "test-child-user");
+  const activeChildId = childId || "test-child-user";
+  const policyDocRef = doc(db, "policies", activeChildId);
 
   useEffect(() => {
-    fetch("/api/policy")
+    fetch(`/api/policy?childId=${activeChildId}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.policy) {
@@ -162,7 +163,7 @@ export default function PolicyControls() {
       fetch("/api/policy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
+        body: JSON.stringify({ ...updates, childId: activeChildId }),
       }).catch(() => {});
 
       setDoc(policyDocRef, { ...updates, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
@@ -172,32 +173,70 @@ export default function PolicyControls() {
   };
 
   const toggleCategory = (key: string) => {
-    const newValue = !policy[key as keyof ContentPolicy];
-    setPolicy((prev) => ({ ...prev, [key]: newValue }));
-    savePolicy({ [key]: newValue });
+    const action = () => {
+      const newValue = !policy[key as keyof ContentPolicy];
+      setPolicy((prev) => ({ ...prev, [key]: newValue }));
+      savePolicy({ [key]: newValue });
+    };
+    if (triggerAuth) triggerAuth(action);
+    else action();
   };
 
   const changeMode = (mode: ContentPolicy["mode"]) => {
-    setPolicy((prev) => ({ ...prev, mode }));
-    savePolicy({ mode });
+    const action = () => {
+      setPolicy((prev) => ({ ...prev, mode }));
+      savePolicy({ mode });
+    };
+    if (triggerAuth) triggerAuth(action);
+    else action();
   };
 
   const addBlockedDomain = () => {
     const raw = newBlockedDomain.trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, "").replace(/\/.*$/, "");
     if (!raw) return;
-    const updated = [...policy.customBlockedDomains, raw];
-    setPolicy((prev) => ({ ...prev, customBlockedDomains: updated }));
-    savePolicy({ customBlockedDomains: updated });
-    setNewBlockedDomain("");
+    
+    const action = () => {
+      const updated = [...policy.customBlockedDomains, raw];
+      setPolicy((prev) => ({ ...prev, customBlockedDomains: updated }));
+      setNewBlockedDomain("");
+      savePolicy({ customBlockedDomains: updated });
+    };
+    if (triggerAuth) triggerAuth(action);
+    else action();
+  };
+
+  const removeBlockedDomain = (domain: string) => {
+    const action = () => {
+      const updated = policy.customBlockedDomains.filter((d) => d !== domain);
+      setPolicy((prev) => ({ ...prev, customBlockedDomains: updated }));
+      savePolicy({ customBlockedDomains: updated });
+    };
+    if (triggerAuth) triggerAuth(action);
+    else action();
   };
 
   const addAllowedDomain = () => {
     const raw = newAllowedDomain.trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, "").replace(/\/.*$/, "");
     if (!raw) return;
-    const updated = [...policy.customAllowedDomains, raw];
-    setPolicy((prev) => ({ ...prev, customAllowedDomains: updated }));
-    savePolicy({ customAllowedDomains: updated });
-    setNewAllowedDomain("");
+    
+    const action = () => {
+      const updated = [...policy.customAllowedDomains, { url: raw, expiry: null, addedAt: Date.now() }];
+      setPolicy((prev) => ({ ...prev, customAllowedDomains: updated }));
+      setNewAllowedDomain("");
+      savePolicy({ customAllowedDomains: updated });
+    };
+    if (triggerAuth) triggerAuth(action);
+    else action();
+  };
+
+  const removeAllowedDomain = (domain: string) => {
+    const action = () => {
+      const updated = policy.customAllowedDomains.filter((d) => d.url !== domain && (typeof d === "string" ? d !== domain : true));
+      setPolicy((prev) => ({ ...prev, customAllowedDomains: updated }));
+      savePolicy({ customAllowedDomains: updated });
+    };
+    if (triggerAuth) triggerAuth(action);
+    else action();
   };
 
   if (!isLoaded) return <div className="animate-pulse flex space-x-4"><div className="flex-1 space-y-6 py-1"><div className="h-2 bg-[#1e222b] rounded"></div></div></div>;
@@ -320,11 +359,22 @@ export default function PolicyControls() {
               </button>
             </div>
             
-            <p className="text-[11px] text-dash-text-faded italic text-center mt-2">
-              {policy.customBlockedDomains.length === 0 
-                ? "No domains explicitly blocked." 
-                : policy.customBlockedDomains.join(", ")}
-            </p>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {policy.customBlockedDomains.length === 0 ? (
+                <p className="text-[11px] text-dash-text-faded italic text-center w-full mt-2">
+                  No domains explicitly blocked.
+                </p>
+              ) : (
+                policy.customBlockedDomains.map((domain, index) => (
+                  <span key={`${domain}-${index}`} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-dash-card border border-dash-border-light text-[11px] font-medium text-dash-text">
+                    {domain}
+                    <button onClick={() => removeBlockedDomain(domain)} className="text-dash-text-faded hover:text-rose-500 transition-colors">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </span>
+                ))
+              )}
+            </div>
           </div>
 
           {/* Always Allow */}
@@ -354,11 +404,22 @@ export default function PolicyControls() {
               </button>
             </div>
             
-            <p className="text-[11px] text-dash-text-faded italic text-center mt-2">
-              {policy.customAllowedDomains.length === 0 
-                ? "No domains explicitly allowed." 
-                : policy.customAllowedDomains.join(", ")}
-            </p>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {policy.customAllowedDomains.length === 0 ? (
+                <p className="text-[11px] text-dash-text-faded italic text-center w-full mt-2">
+                  No domains explicitly allowed.
+                </p>
+              ) : (
+                policy.customAllowedDomains.map((domain, index) => (
+                  <span key={`${domain}-${index}`} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-dash-card border border-dash-border-light text-[11px] font-medium text-dash-text">
+                    {domain}
+                    <button onClick={() => removeAllowedDomain(domain)} className="text-dash-text-faded hover:text-emerald-500 transition-colors">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </span>
+                ))
+              )}
+            </div>
           </div>
 
         </div>

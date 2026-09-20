@@ -44,12 +44,23 @@ function getDomainFromUrl(url: string): string {
 export default function AlertsFeed({ alerts, onDelete }: AlertsFeedProps) {
   if (alerts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-dash-text-faded">
-        <svg className="w-12 h-12 mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-        </svg>
-        <p className="text-sm font-medium">No security alerts</p>
-        <p className="text-xs mt-1">Diamond Shield is keeping things safe ✨</p>
+      <div className="space-y-3 mt-4">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="bg-dash-card/30 rounded-xl border border-dash-border/30 p-4 animate-pulse flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-dash-sidebar flex-shrink-0"></div>
+            <div className="flex-1 space-y-2 py-1">
+              <div className="h-4 bg-dash-sidebar rounded w-3/4"></div>
+              <div className="h-3 bg-dash-sidebar rounded w-1/2"></div>
+            </div>
+            <div className="w-12 h-4 bg-dash-sidebar rounded"></div>
+          </div>
+        ))}
+        <div className="flex flex-col items-center justify-center pt-8 pb-4 text-dash-text-faded">
+          <svg className="w-10 h-10 mb-3 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+          <p className="text-[12px] font-medium opacity-60">No recent security alerts</p>
+        </div>
       </div>
     );
   }

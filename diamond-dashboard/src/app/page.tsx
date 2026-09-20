@@ -26,6 +26,8 @@ import AccessRequests from "@/components/AccessRequests";
 import PolicyControls from "@/components/PolicyControls";
 import AddChildModal from "@/components/AddChildModal";
 import PairDeviceModal from "@/components/PairDeviceModal";
+import PinSetupModal from "@/components/PinSetupModal";
+import PinChallengeModal from "@/components/PinChallengeModal";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 
@@ -107,6 +109,16 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
   const [isLoading, setIsLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // PIN Auth states
+  const [hasPin, setHasPin] = useState<boolean | null>(null);
+  const [showPinChallenge, setShowPinChallenge] = useState(false);
+  const [pinChallengeAction, setPinChallengeAction] = useState<(() => void) | null>(null);
+
+  const triggerAuth = (action: () => void) => {
+    setPinChallengeAction(() => action);
+    setShowPinChallenge(true);
+  };
 
   const { user, loading: authLoading, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
@@ -125,6 +137,20 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user || !db) return;
     
+    const fetchPin = async () => {
+      try {
+        const parentDoc = await getDoc(doc(db, "parents", user.uid));
+        if (parentDoc.exists()) {
+          setHasPin(!!parentDoc.data().pin);
+        } else {
+          setHasPin(false);
+        }
+      } catch (e) {
+        console.error("Error fetching PIN:", e);
+      }
+    };
+    fetchPin();
+
     try {
       const childrenQuery = query(collection(db, `parents/${user.uid}/children`), orderBy("createdAt", "asc"));
       const unsubChildren = onSnapshot(childrenQuery, (snapshot) => {
@@ -518,6 +544,46 @@ export default function Dashboard() {
     }
   };
 
+
+
+  const handleDeleteAllAlerts = () => {
+    triggerAuth(async () => {
+      if (!activeChildId || !db) return;
+      try {
+        const q = query(collection(db, "alerts"), where("userId", "==", activeChildId));
+        const snapshot = await getDocs(q);
+        const batch = db ? import("firebase/firestore").then(m => m.writeBatch(db)) : null;
+        if (!batch) return;
+        const b = await batch;
+        snapshot.forEach(doc => b.delete(doc.ref));
+        await b.commit();
+      } catch (error) {
+        console.error("Error deleting all alerts:", error);
+      }
+    });
+  };
+
+  const handleClearRequestHistory = () => {
+    triggerAuth(async () => {
+      if (!activeChildId || !db) return;
+      try {
+        const q = query(
+          collection(db, "requests"), 
+          where("userId", "==", activeChildId),
+          where("status", "in", ["APPROVED", "DENIED", "EXPIRED"])
+        );
+        const snapshot = await getDocs(q);
+        const batch = db ? import("firebase/firestore").then(m => m.writeBatch(db)) : null;
+        if (!batch) return;
+        const b = await batch;
+        snapshot.forEach(doc => b.delete(doc.ref));
+        await b.commit();
+      } catch (error) {
+        console.error("Error clearing request history:", error);
+      }
+    });
+  };
+
   const handleDenyRequest = async (requestId: string) => {
     setRequests((prev) => prev.map((r) => (r.id === requestId ? { ...r, status: "DENIED" } : r)));
     fetch("/api/requests", {
@@ -531,12 +597,14 @@ export default function Dashboard() {
     } catch {}
   };
 
-  const handleDeleteAlert = async (alertId: string) => {
-    setAlerts((prev) => prev.filter((a) => a.id !== alertId));
-    fetch(`/api/alerts?id=${encodeURIComponent(alertId)}`, { method: "DELETE" }).catch(() => {});
-    try {
-      await deleteDoc(doc(db, "alerts", alertId));
-    } catch {}
+  const handleDeleteAlert = (alertId: string) => {
+    triggerAuth(async () => {
+      setAlerts((prev) => prev.filter((a) => a.id !== alertId));
+      fetch(`/api/alerts?id=${encodeURIComponent(alertId)}`, { method: "DELETE" }).catch(() => {});
+      try {
+        await deleteDoc(doc(db, "alerts", alertId));
+      } catch {}
+    });
   };
 
   // ── Render ──
@@ -880,7 +948,7 @@ export default function Dashboard() {
               
               {activeTab === "usage_activity" && renderUsageActivityTab()}
               
-              {activeTab === "controls" && <PolicyControls />}
+              {activeTab === "controls" && <PolicyControls childId={activeChildId} triggerAuth={triggerAuth} />}
               
               {activeTab === "screen_time" && (
                 <div className="bg-dash-card rounded-2xl p-8 border border-dash-border">
@@ -899,7 +967,11 @@ export default function Dashboard() {
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
-                      <AlertsFeed alerts={alerts} onDelete={handleDeleteAlert} />
+                      <AlertsFeed 
+                        alerts={alerts} 
+                        onDelete={handleDeleteAlert} 
+                        onDeleteAll={handleDeleteAllAlerts}
+                      />
                       <AccessRequests 
                         requests={requests} 
                         activeAllowedDomains={allowedSites}
@@ -907,6 +979,7 @@ export default function Dashboard() {
                         onApprove={handleApproveRequest} 
                         onDeny={handleDenyRequest}
                         onRevoke={handleRevokeAccess}
+                        onClearHistory={handleClearRequestHistory}
                       />
                     </div>
                   </div>
@@ -996,6 +1069,34 @@ export default function Dashboard() {
                       </div>
                     </div>
                     
+                    <div className="p-6 border-b border-dash-border">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-[14px] font-bold text-dash-text">Security</h3>
+                          <p className="text-[12px] text-dash-text-faded mt-1">Manage your parent lock and dashboard access.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between bg-dash-card p-4 rounded-xl border border-dash-border-light">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="text-[13px] font-bold text-dash-text">Parent PIN</p>
+                            <p className="text-[12px] text-dash-text-muted mt-0.5">Used to authenticate settings changes</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => triggerAuth(() => setHasPin(false))}
+                          className="px-4 py-2 bg-dash-sidebar text-dash-text text-[12px] font-bold rounded-lg border border-dash-border hover:bg-dash-sidebar-hover transition-colors"
+                        >
+                          Change PIN
+                        </button>
+                      </div>
+                    </div>
+                    
                     <div className="p-6">
                       <button 
                         onClick={signOut}
@@ -1076,6 +1177,31 @@ export default function Dashboard() {
           isScanMode={isScanMode}
           setIsScanMode={setIsScanMode}
           handleQRScan={handleQRScan}
+        />
+      )}
+
+      {hasPin === false && user?.uid && (
+        <PinSetupModal 
+          userId={user.uid} 
+          onComplete={() => {
+            setHasPin(true);
+          }} 
+        />
+      )}
+
+      {user?.uid && (
+        <PinChallengeModal 
+          isOpen={showPinChallenge} 
+          userId={user.uid}
+          onSuccess={() => {
+            setShowPinChallenge(false);
+            if (pinChallengeAction) pinChallengeAction();
+            setPinChallengeAction(null);
+          }}
+          onCancel={() => {
+            setShowPinChallenge(false);
+            setPinChallengeAction(null);
+          }}
         />
       )}
     </div>
