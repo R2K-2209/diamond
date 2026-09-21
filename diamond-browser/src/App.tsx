@@ -6,6 +6,7 @@ import { BrowserTab } from './components/BrowserTab';
 import { SetupScreen } from './components/SetupScreen';
 import { db } from './firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useScreenTimeTracker } from './hooks/useScreenTimeTracker';
 import './index.css';
 
 // ─── App Component ──────────────────────────────────────────────
@@ -33,6 +34,7 @@ function App() {
   
   // Pairing State
   const [isPaired, setIsPaired] = useState<boolean | null>(null);
+  const [childId, setChildId] = useState<string | null>(null);
   
   // Bookmarks State
   const [globalBookmarks, setGlobalBookmarks] = useState<any[]>([]);
@@ -50,6 +52,7 @@ function App() {
           const config = await window.electronAPI.getConfig();
           if (config && config.childId) {
             setIsPaired(true);
+            setChildId(config.childId);
           } else {
             setIsPaired(false);
           }
@@ -60,6 +63,10 @@ function App() {
     };
     loadInit();
   }, []);
+
+  // Screen Time Tracking
+  useScreenTimeTracker(childId, activeTabId, tabs);
+  
   
   // Keep refs for all webviews to call imperative methods like goBack()
   const tabRefs = useRef<Record<string, React.RefObject<any>>>({});
@@ -350,7 +357,7 @@ function App() {
         if (url.includes('bookmarks')) return 'Bookmarks';
         if (url.includes('downloads')) return 'Downloads';
         if (url.includes('newtab')) return 'New Tab';
-        return 'Diamond';
+        return 'Knight';
       };
       
       handleUpdateTab(activeTabId, {
@@ -604,7 +611,7 @@ function App() {
           <button
             onClick={() => setShowStatusPanel(!showStatusPanel)}
             className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
-            title="Diamond Shield Status"
+            title="Knight Shield Status"
           >
             <div className="relative flex items-center justify-center">
               <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
@@ -620,7 +627,7 @@ function App() {
               <div className="fixed inset-0 z-40" onClick={() => setShowStatusPanel(false)} />
               <div className="absolute top-full right-0 mt-2 w-64 bg-[#2b2d31] border border-white/10 rounded-lg shadow-2xl p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200 text-sm">
                 <h3 className="font-medium text-gray-200 mb-3 flex items-center justify-between">
-                  Diamond Shield
+                  Knight Shield
                   <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-[10px] rounded-full">Active</span>
                 </h3>
                 <div className="space-y-2.5">

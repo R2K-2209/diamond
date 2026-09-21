@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Website Blocked — Diamond Shield</title>
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <title>Website Blocked — Knight</title>
+  <link rel="icon" type="image/png" href="/logo.png" />
   <style>
     * {
       box-sizing: border-box;
@@ -28,20 +28,16 @@
       background: #202124;
     }
     .icon-container {
-      width: 64px;
-      height: 64px;
-      border-radius: 16px;
-      background: rgba(234, 67, 53, 0.12);
-      border: 1px solid rgba(234, 67, 53, 0.25);
+      width: 100%;
       display: flex;
-      align-items: center;
       justify-content: center;
       margin-bottom: 24px;
     }
-    .icon-container svg {
-      width: 36px;
-      height: 36px;
-      color: #ea4335;
+    .icon-container img {
+      width: 140px;
+      height: 140px;
+      object-fit: contain;
+      filter: drop-shadow(0 0 30px rgba(0,0,0,0.6));
     }
     h1 {
       font-size: 28px;
@@ -185,14 +181,12 @@
 <body>
   <div class="container">
     <div class="icon-container">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-      </svg>
+      <img src="/logo.png" />
     </div>
 
     <h1>Website Blocked</h1>
     <p class="subhead">
-      Diamond Shield has restricted access to this website according to your parent or guardian's safety rules.
+      Knight has restricted access to this website according to your parent or guardian's safety rules.
     </p>
 
     <div class="card">
@@ -226,11 +220,11 @@
         Advanced <span>▾</span>
       </button>
       <div class="advanced-panel" id="advanced-panel">
-        <div>Error Code: <strong>DIAMOND_ERR_BLOCKED_BY_ADMINISTRATOR</strong></div>
+        <div>Error Code: <strong>KNIGHT_ERR_BLOCKED_BY_ADMINISTRATOR</strong></div>
         <div id="adv-layer">Layer: Safety Filter</div>
         <div id="adv-time">Timestamp: </div>
         <div style="margin-top: 6px; color: #70757a;">
-          Diamond Shield inspected this destination against your device's parental policy before rendering content.
+          Knight inspected this destination against your device's parental policy before rendering content.
         </div>
       </div>
     </div>

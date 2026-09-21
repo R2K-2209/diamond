@@ -193,7 +193,7 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
           tab.id,
           target,
           'Blocked by Shield Protection',
-          'Access to this website was restricted by Diamond Shield or Cloudflare Family DNS.',
+          'Access to this website was restricted by Knight Shield or Cloudflare Family DNS.',
           'dns'
         );
       }
@@ -297,7 +297,7 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
           (target.includes('contacts.google.com') && target.includes('/widget'))
         );
         if (isGoogleWidget) {
-          console.log('[Diamond] Silently ignored Google widget popup:', target.substring(0, 80));
+          console.log('[Knight] Silently ignored Google widget popup:', target.substring(0, 80));
           return; // Do nothing — don't navigate the webview
         }
       } catch {}
@@ -383,11 +383,13 @@ export const BrowserTab = forwardRef<any, BrowserTabProps>(({ tab, isActive, onU
         // @ts-ignore
         allowpopups="false"
         // @ts-ignore
+        plugins="true"
+        // @ts-ignore
         partition="persist:diamond"
         // @ts-ignore
         useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
         // @ts-ignore
-        webpreferences="contextIsolation=true, sandbox=false, webSecurity=no"
+        webpreferences="contextIsolation=true, sandbox=false, webSecurity=no, plugins=true"
         preload={(window as any).electronAPI?.getWebviewPreloadPathSync?.() || ''}
       />
     </div>

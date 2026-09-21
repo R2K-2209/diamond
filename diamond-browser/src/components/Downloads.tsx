@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface DownloadItem {
   id: string;
@@ -116,7 +116,7 @@ export function DownloadsPage() {
           <div className="bg-[#1e1e1e] border border-white/5 rounded-2xl p-12 text-center text-gray-400">
             <svg className="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
             <p className="text-lg mb-2">No downloads yet</p>
-            <p className="text-sm text-gray-500">Downloaded files will appear here. Diamond Shield automatically blocks executable and script files to protect your device.</p>
+            <p className="text-sm text-gray-500">Downloaded files will appear here. Knight Shield automatically blocks executable and script files to protect your device.</p>
           </div>
         ) : (
           <div className="bg-[#1e1e1e] border border-white/5 rounded-2xl overflow-hidden shadow-2xl">

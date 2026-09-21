@@ -37,7 +37,6 @@ import {
   STRICT_TRIE,
   YOUTUBE_TITLE_PATTERNS,
   YOUTUBE_CARD_SELECTORS,
-  HIGH_CONFIDENCE_TOKENS,
   IMAGE_CONFIG,
   DIAMOND_CSS,
 } from '../src/shieldDictionary';
@@ -49,15 +48,12 @@ ipcRenderer.on('set-explicitly-allowed', (_event, allowed: boolean) => {
   isExplicitlyAllowed = allowed;
 });
 
-// Destructure image config for convenience
-const {
-  minWidth: MIN_IMAGE_WIDTH,
-  minHeight: MIN_IMAGE_HEIGHT,
-  thresholds: NSFW_THRESHOLDS,
-  cacheMaxSize: IMAGE_CACHE_MAX_SIZE,
-  maxConcurrentScans: MAX_CONCURRENT_SCANS,
-  scanDebounceMs: SCAN_DEBOUNCE_MS,
-} = IMAGE_CONFIG;
+const MIN_IMAGE_WIDTH = 50;
+const MIN_IMAGE_HEIGHT = 50;
+const NSFW_THRESHOLDS = { Porn: 0.6, Hentai: 0.55, Sexy: 0.6 };
+const IMAGE_CACHE_MAX_SIZE = 500;
+const MAX_CONCURRENT_SCANS = 10;
+const SCAN_DEBOUNCE_MS = 300;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // UTILITY: LRU Cache for image scan results
@@ -227,21 +223,56 @@ function checkTextContent(text: string): { match: string; severity: 'explicit' |
   return null;
 }
 
+const CARD_SELECTORS = [
+  // YouTube
+  'ytd-rich-item-renderer',
+  'ytd-video-renderer',
+  'ytd-compact-video-renderer',
+  'ytd-grid-video-renderer',
+  'ytd-playlist-video-renderer',
+  'ytd-reel-item-renderer',
+  // Spotify
+  '[data-testid="tracklist-row"]',
+  '[data-testid="play-list-item"]',
+  '[data-testid="search-tracks-result"]',
+  '[data-testid="hero-card"]',
+  '[data-testid="top-result-card"]',
+  '[role="row"]',
+  // Generic
+  'article',
+  'li',
+  'tr'
+];
+
 /**
- * Find the closest "card" parent element on YouTube.
- * Hiding the card removes the thumbnail + title + metadata together.
+ * Find the closest "card" or "banner" parent element to blur.
+ * This ensures we blur the whole song row or video card instead of just the tiny text span.
  */
-function findYouTubeCardParent(element: Element): Element | null {
+function findCardParent(element: Element): Element {
   let current: Element | null = element;
-  while (current) {
-    for (const selector of YOUTUBE_CARD_SELECTORS) {
+  let steps = 0;
+  while (current && steps < 8) {
+    for (const selector of CARD_SELECTORS) {
       if (current.matches(selector)) {
+        if (current.tagName !== 'BODY' && current.tagName !== 'HTML' && current.tagName !== 'MAIN') {
+           return current;
+        }
+      }
+    }
+    
+    // Generic heuristic for rows/cards based on class names
+    if (typeof current.className === 'string') {
+      const cls = current.className.toLowerCase();
+      if ((cls.includes('card') || cls.includes('track') || cls.includes('row') || cls.includes('item')) && 
+          !cls.includes('container') && !cls.includes('wrapper') && !cls.includes('list') && !cls.includes('page')) {
         return current;
       }
     }
+    
     current = current.parentElement;
+    steps++;
   }
-  return null;
+  return element;
 }
 
 // Track sent alerts to prevent IPC spam
@@ -262,9 +293,16 @@ function scanTextElement(element: Element): void {
   if (element.classList?.contains(DIAMOND_CSS.redactedText)) return;
   if (element.classList?.contains(DIAMOND_CSS.hiddenElement)) return;
 
+  // Prevent blurring massive container elements (like whole playlists or search lists)
+  // If the text is very long and it contains block elements, it's a layout container.
+  if (text.length > 200 && element.querySelector('div, ul, li, article, section, table, tbody, grid')) {
+    return;
+  }
+
   const result = checkTextContent(text);
   if (result) {
-    applyTextRedaction(element, result.category, result.match, text);
+    // Drill down to the smallest element containing the match to avoid blurring huge boxes
+    applyTextRedaction(element, (result as any).category || 'Inappropriate Word', result.match, text);
     return;
   }
 
@@ -276,7 +314,7 @@ function scanTextElement(element: Element): void {
  * Applies the actual blurring/hiding logic and emits the IPC alert.
  */
 function applyTextRedaction(element: Element, category: string, reason: string, originalText: string): void {
-  const isYouTube = window.location.hostname.includes('youtube.com');
+  const isYouTube = window.location.hostname.includes('youtube.com') || window.location.hostname.includes('youtu.be');
 
   if (isExplicitlyAllowed) {
     // Silent Mode: Do not blur or hide, just report the keyword
@@ -293,15 +331,16 @@ function applyTextRedaction(element: Element, category: string, reason: string, 
     return;
   }
 
+  // Find the perfect "card" or "row" wrapper for this element
+  const targetElement = findCardParent(element);
+
   if (isYouTube) {
-    // On YouTube, try to hide the entire video card
-    const card = findYouTubeCardParent(element);
-    if (card && !scannedElements.has(card)) {
-      scannedElements.add(card);
-      card.classList.add(DIAMOND_CSS.hiddenElement);
-      console.log(`[Diamond L4] Hidden YouTube card: "${originalText.substring(0, 60)}..." (matched: "${reason}")`);
-      
-      const alertKey = `Content Hidden:${reason}`;
+    // On YouTube, completely hide the video card for cleaner UI
+    if (!scannedElements.has(targetElement)) {
+      scannedElements.add(targetElement);
+      targetElement.classList.add(DIAMOND_CSS.hiddenElement);
+
+      const alertKey = `${category}:${reason}`;
       if (!sentAlerts.has(alertKey)) {
         sentAlerts.add(alertKey);
         ipcRenderer.sendToHost('content-flagged-silent', {
@@ -316,7 +355,7 @@ function applyTextRedaction(element: Element, category: string, reason: string, 
   }
 
   // For non-YouTube or if no card found, redact the specific element using a blur effect
-  element.classList.add(DIAMOND_CSS.redactedText);
+  targetElement.classList.add(DIAMOND_CSS.redactedText);
 
   console.log(`[Diamond L4] Redacted: "${originalText.substring(0, 60)}..." (matched: "${reason}")`);
   
@@ -555,8 +594,8 @@ async function classifyImage(img: HTMLImageElement): Promise<void> {
     return;
   }
 
-  // Respect concurrent scan limit (Hardcode to 1 for smooth video playback)
-  if (activeScanCount >= 1) {
+  // Respect concurrent scan limit
+  if (activeScanCount >= MAX_CONCURRENT_SCANS) {
     scanQueue.push(img);
     return;
   }
@@ -574,7 +613,10 @@ async function classifyImage(img: HTMLImageElement): Promise<void> {
     } catch (err) {
       // Ultimate fallback for Tainted Canvas / CORS: 
       // Manually fetch the bytes (webSecurity=no allows this), convert to bitmap, and draw to an isolated canvas.
-      const srcUrl = img.currentSrc || img.src;
+      let srcUrl = img.currentSrc || img.src;
+      if (srcUrl.startsWith('//')) {
+        srcUrl = 'https:' + srcUrl;
+      }
       const res = await fetch(srcUrl);
       const blob = await res.blob();
       const bitmap = await createImageBitmap(blob);
@@ -597,7 +639,9 @@ async function classifyImage(img: HTMLImageElement): Promise<void> {
       if (
         (className === 'Porn' && probability >= NSFW_THRESHOLDS.Porn) ||
         (className === 'Hentai' && probability >= NSFW_THRESHOLDS.Hentai) ||
-        (className === 'Sexy' && probability >= 0.60)
+        (className === 'Sexy' && probability >= NSFW_THRESHOLDS.Sexy) ||
+        (className === 'Porn' && probability + (predictions.find(p => p.className === 'Sexy')?.probability || 0) >= 0.5) ||
+        (className === 'Hentai' && probability + (predictions.find(p => p.className === 'Drawing')?.probability || 0) >= 0.8 && probability > 0.2)
       ) {
         dominated = true;
         console.log(`[Diamond L5] Blocked image: ${className}=${(probability * 100).toFixed(1)}% | ${key.substring(0, 80)}`);
@@ -622,14 +666,15 @@ async function classifyImage(img: HTMLImageElement): Promise<void> {
         img.classList.add(DIAMOND_CSS.blurredImage);
         imageCache.set(key, 'blocked');
 
-        // On YouTube, try hiding the entire video card
-        const isYouTube = window.location.hostname.includes('youtube.com');
+        // Try hiding/blurring the card if it's an image block
         let hiddenCard = false;
-        if (isYouTube) {
-          const card = findYouTubeCardParent(img);
-          if (card) {
+        const card = findCardParent(img);
+        if (card && card !== img) {
+          if (isYouTube) {
             card.classList.add(DIAMOND_CSS.hiddenElement);
             hiddenCard = true;
+          } else {
+            card.classList.add(DIAMOND_CSS.redactedText);
           }
         }
         
@@ -661,7 +706,7 @@ async function classifyImage(img: HTMLImageElement): Promise<void> {
  * Process the next image in the scan queue.
  */
 function processQueue(): void {
-  while (scanQueue.length > 0 && activeScanCount < 1) {
+  while (scanQueue.length > 0 && activeScanCount < MAX_CONCURRENT_SCANS) {
     const img = scanQueue.shift();
     if (img && img.isConnected) {
       classifyImage(img);
@@ -801,13 +846,13 @@ function checkMetaTags(): { flagged: boolean; reason: string } | null {
 
     // 4. Content-type or description containing explicit terms
     if (name === 'description' || name === 'keywords' || property === 'og:description') {
-      for (const keyword of HIGH_CONFIDENCE_TOKENS) {
-        if (content.includes(keyword)) {
-          return {
-            flagged: true,
-            reason: `Page meta ${name || property} contains explicit keyword "${keyword}".`,
-          };
-        }
+      const activeTrie = currentPolicyMode === 'strict' ? STRICT_TRIE : MODERATE_TRIE;
+      const match = searchAhoCorasick(content, activeTrie);
+      if (match && match.severity === 'explicit') {
+        return {
+          flagged: true,
+          reason: `Page meta ${name || property} contains explicit keyword "${match.match}".`,
+        };
       }
     }
   }
@@ -817,43 +862,28 @@ function checkMetaTags(): { flagged: boolean; reason: string } | null {
 
 function checkTitleAndHeadings(): { flagged: boolean; reason: string } | null {
   const title = (document.title || '').toLowerCase();
-  for (const keyword of HIGH_CONFIDENCE_TOKENS) {
-    if (title.includes(keyword)) {
-      return {
-        flagged: true,
-        reason: `Page title contains explicit keyword "${keyword}".`,
-      };
-    }
-  }
-
-  // Check for suggestive phrases in the title too
-  const titleSuggestive = title.match(suggestiveRegex);
-  if (titleSuggestive) {
-    // Only block title if it's a strong signal
-    const match = titleSuggestive[0];
-    if (EXPLICIT_KEYWORDS.has(match) || match.includes('18+')) {
-      return {
-        flagged: true,
-        reason: `Page title contains inappropriate content: "${match}".`,
-      };
-    }
+  const activeTrie = currentPolicyMode === 'strict' ? STRICT_TRIE : MODERATE_TRIE;
+  
+  const titleMatch = searchAhoCorasick(title, activeTrie);
+  if (titleMatch) {
+    return {
+      flagged: true,
+      reason: `Page title contains inappropriate content: "${titleMatch.match}".`,
+    };
   }
 
   const headings = document.querySelectorAll('h1, h2, h3');
-  let flagCount = 0;
+  let explicitCount = 0;
   for (const heading of headings) {
     const text = (heading.textContent || '').toLowerCase();
-    for (const keyword of HIGH_CONFIDENCE_TOKENS) {
-      const regex = new RegExp(`\\b${keyword}\\b`, 'i');
-      if (regex.test(text)) {
-        if (keyword === 'nsfw') continue;
-        flagCount++;
-        if (flagCount >= 2) {
-          return {
-            flagged: true,
-            reason: `Multiple page headings contain explicit keyword "${keyword}".`,
-          };
-        }
+    const headingMatch = searchAhoCorasick(text, activeTrie);
+    if (headingMatch && headingMatch.severity === 'explicit') {
+      explicitCount++;
+      if (explicitCount >= 2) {
+        return {
+          flagged: true,
+          reason: `Multiple page headings contain explicit keyword "${headingMatch.match}".`,
+        };
       }
     }
   }
@@ -865,22 +895,45 @@ function checkBodyContent(): { flagged: boolean; reason: string } | null {
   const bodyText = (document.body?.innerText || '').toLowerCase().slice(0, 5000);
   if (!bodyText || bodyText.length < 50) return null;
 
+  const activeTrie = currentPolicyMode === 'strict' ? STRICT_TRIE : MODERATE_TRIE;
+  let currentState = 0;
   let matchCount = 0;
   const matchedKeywords: string[] = [];
 
-  for (const keyword of EXPLICIT_KEYWORDS) {
-    const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-    if (regex.test(bodyText)) {
-      matchCount++;
-      matchedKeywords.push(keyword);
+  for (let i = 0; i < bodyText.length; i++) {
+    const char = bodyText[i];
+    while (currentState > 0 && activeTrie[currentState].next[char] === undefined) {
+      currentState = activeTrie[currentState].fail;
     }
-  }
-
-  if (matchCount >= 5) {
-    return {
-      flagged: true,
-      reason: `Page body content contains ${matchCount} explicit keywords: ${matchedKeywords.slice(0, 5).join(', ')}.`,
-    };
+    if (activeTrie[currentState].next[char] !== undefined) {
+      currentState = activeTrie[currentState].next[char];
+    } else {
+      currentState = 0;
+    }
+    
+    if (activeTrie[currentState].output.length > 0) {
+      for (const out of activeTrie[currentState].output) {
+        if (out.severity === 'explicit') {
+          const decodedWord = atob(out.word);
+          const startIndex = i - decodedWord.length + 1;
+          const beforeChar = startIndex > 0 ? bodyText[startIndex - 1] : ' ';
+          const afterChar = i + 1 < bodyText.length ? bodyText[i + 1] : ' ';
+          
+          if (!/[a-z0-9]/.test(beforeChar) && !/[a-z0-9]/.test(afterChar)) {
+            if (!matchedKeywords.includes(decodedWord)) {
+              matchedKeywords.push(decodedWord);
+              matchCount++;
+            }
+          }
+        }
+      }
+    }
+    if (matchCount >= 5) {
+      return {
+        flagged: true,
+        reason: `Page body content contains 5+ explicit keywords: ${matchedKeywords.slice(0, 5).join(', ')}.`,
+      };
+    }
   }
 
   return null;

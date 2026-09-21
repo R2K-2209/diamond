@@ -50,7 +50,7 @@ export function SetupScreen({ onPaired }: { onPaired: () => void }) {
         });
       } catch (err) {
         console.error('Failed to create pairing code:', err);
-        setError('Failed to connect to Diamond servers. Please check your internet connection.');
+        setError('Failed to connect to Knight servers. Please check your internet connection.');
       }
     };
 
@@ -103,16 +103,16 @@ export function SetupScreen({ onPaired }: { onPaired: () => void }) {
       <div className="flex w-full max-w-[1000px] mx-auto bg-[#18181a] rounded-[2rem] overflow-hidden my-auto border border-white/10 relative z-10 shadow-[0_0_60px_rgba(255,255,255,0.03)]" style={{ height: '75vh' }}>
         
         {/* Left Pane - Instructions */}
-        <div className="w-1/2 p-16 flex flex-col justify-center border-r border-white/5 bg-[#141415]">
-          <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mb-10 shadow-lg shadow-blue-500/20">
-            <span className="text-white text-2xl">💎</span>
+        <div className="w-1/2 p-12 flex flex-col justify-center items-center text-center border-r border-white/5 bg-[#141415]">
+          <div className="w-full flex items-center justify-center mb-8">
+            <img src="/logo.png" className="w-48 h-48 object-contain drop-shadow-[0_0_30px_rgba(255,255,255,0.15)]" alt="Knight Logo" />
           </div>
           
-          <h1 className="text-4xl font-semibold mb-6 tracking-tight text-white">
-            Set up Diamond<br/>Browser
+          <h1 className="text-4xl font-bold text-white mb-3 tracking-tight">
+            Set up Knight
           </h1>
           
-          <p className="text-lg text-gray-400 mb-10 leading-relaxed max-w-md">
+          <p className="text-lg text-gray-400 mb-10 leading-relaxed max-w-sm">
             This browser is currently locked to ensure a safe environment. To activate it, pair this device from your Parent Dashboard.
           </p>
 

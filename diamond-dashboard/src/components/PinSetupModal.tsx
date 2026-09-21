@@ -52,7 +52,9 @@ export default function PinSetupModal({ userId, onComplete }: { userId: string, 
           <div>
             <label className="block text-[11px] font-bold text-dash-text-muted uppercase tracking-wider mb-1.5">New PIN</label>
             <input
-              type="password"
+              type="text"
+              style={{ WebkitTextSecurity: "disc" } as any}
+              autoComplete="off"
               inputMode="numeric"
               maxLength={4}
               value={pin}
@@ -65,7 +67,9 @@ export default function PinSetupModal({ userId, onComplete }: { userId: string, 
           <div>
             <label className="block text-[11px] font-bold text-dash-text-muted uppercase tracking-wider mb-1.5">Confirm PIN</label>
             <input
-              type="password"
+              type="text"
+              style={{ WebkitTextSecurity: "disc" } as any}
+              autoComplete="off"
               inputMode="numeric"
               maxLength={4}
               value={confirmPin}

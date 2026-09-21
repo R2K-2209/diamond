@@ -1,5 +1,5 @@
 /**
- * Diamond Browser — Electron Main Process
+ * Knight — Electron Main Process
  * 
  * 5-Layer Defense-in-Depth Child Protection:
  *   Layer 1: Cloudflare Family DNS-over-HTTPS (millions of domains)
@@ -110,8 +110,8 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1280,
     height: 820,
-    title: 'Diamond — Child-Safe Web Browser',
-    icon: path.join(process.env.VITE_PUBLIC!, 'favicon.svg'),
+    title: 'Knight — Child-Safe Web Browser',
+    icon: path.join(process.env.VITE_PUBLIC!, 'logo.ico'),
     autoHideMenuBar: true,
     titleBarStyle: 'hidden',
     titleBarOverlay: {
@@ -123,6 +123,7 @@ function createWindow() {
       preload: preloadPath,
       webviewTag: true,
       sandbox: false,
+      plugins: true,
     },
   });
 

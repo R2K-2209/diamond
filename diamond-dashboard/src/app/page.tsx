@@ -13,6 +13,7 @@ import {
   collection,
   setDoc,
   getDoc,
+  getDocs,
   updateDoc,
   deleteDoc,
   addDoc,
@@ -78,6 +79,15 @@ export interface AllowedSite {
   addedAt: number;
 }
 
+export interface ScreenTimeData {
+  id: string;
+  childId: string;
+  date: string;
+  domains: Record<string, number>;
+  totalTimeMs: number;
+  lastUpdated: number;
+}
+
 // ─── Dashboard Page ─────────────────────────────────────────────
 
 import { type ChildProfile } from "@/components/Sidebar";
@@ -89,6 +99,7 @@ export default function Dashboard() {
   const [alerts, setAlerts] = useState<AlertEntry[]>([]);
   const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [allowedSites, setAllowedSites] = useState<AllowedSite[]>([]);
+  const [screenTimeData, setScreenTimeData] = useState<ScreenTimeData | null>(null);
   
   // Dashboard UI states
   const [childrenProfiles, setChildrenProfiles] = useState<ChildProfile[]>([]);
@@ -215,6 +226,7 @@ export default function Dashboard() {
     let unsubAlerts = () => {};
     let unsubRequests = () => {};
     let unsubPolicy = () => {};
+    let unsubScreenTime = () => {};
 
     if (activeChildId && db) {
       try {
@@ -290,6 +302,20 @@ export default function Dashboard() {
           },
           () => {}
         );
+
+        const dateStr = new Date().toLocaleDateString('en-CA');
+        const screenTimeRef = doc(db, "screen_time", `${activeChildId}_${dateStr}`);
+        unsubScreenTime = onSnapshot(
+          screenTimeRef, 
+          (docSnap) => {
+            if (docSnap.exists()) {
+              setScreenTimeData({ id: docSnap.id, ...docSnap.data() } as ScreenTimeData);
+            } else {
+              setScreenTimeData(null);
+            }
+          },
+          () => {}
+        );
       } catch (err) {
         console.error("Firestore Listeners Error:", err);
         setIsLoading(false);
@@ -298,6 +324,7 @@ export default function Dashboard() {
       setLogs([]);
       setAlerts([]);
       setRequests([]);
+      setScreenTimeData(null);
       setIsLoading(false);
     }
 
@@ -306,6 +333,7 @@ export default function Dashboard() {
       unsubAlerts();
       unsubRequests();
       unsubPolicy();
+      unsubScreenTime();
     };
   }, [activeChildId]);
 
@@ -544,6 +572,23 @@ export default function Dashboard() {
     }
   };
 
+  const handleClearLogs = () => {
+    triggerAuth(async () => {
+      if (!activeChildId || !db) return;
+      try {
+        const q = query(collection(db, "logs"), where("userId", "==", activeChildId));
+        const snapshot = await getDocs(q);
+        const batch = db ? import("firebase/firestore").then(m => m.writeBatch(db)) : null;
+        if (!batch) return;
+        const b = await batch;
+        snapshot.forEach(doc => b.delete(doc.ref));
+        await b.commit();
+      } catch (error) {
+        console.error("Error clearing logs:", error);
+      }
+    });
+  };
+
 
 
   const handleDeleteAllAlerts = () => {
@@ -755,8 +800,19 @@ export default function Dashboard() {
 
       {/* Activity Logs Table */}
       <div className="bg-dash-card rounded-2xl border border-dash-border overflow-hidden flex flex-col min-h-0 flex-1">
-        <div className="px-6 py-5 border-b border-dash-border shrink-0">
+        <div className="px-6 py-5 border-b border-dash-border shrink-0 flex justify-between items-center">
           <h3 className="text-[15px] font-bold text-dash-text">Activity Logs</h3>
+          {logs.length > 0 && (
+            <button 
+              onClick={handleClearLogs}
+              className="text-[12px] font-bold text-dash-text-muted hover:text-rose-400 transition-colors flex items-center gap-1.5"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Clear All
+            </button>
+          )}
         </div>
         <div className="overflow-auto custom-scrollbar flex-1">
           <div className="min-w-[800px]">
@@ -951,9 +1007,62 @@ export default function Dashboard() {
               {activeTab === "controls" && <PolicyControls childId={activeChildId} triggerAuth={triggerAuth} />}
               
               {activeTab === "screen_time" && (
-                <div className="bg-dash-card rounded-2xl p-8 border border-dash-border">
-                  <h3 className="text-[15px] font-bold text-dash-text mb-4">Screen Time</h3>
-                  <p className="text-[13px] text-dash-text-faded">Screen time controls coming soon.</p>
+                <div className="flex flex-col gap-6 h-full">
+                  <div className="flex items-center justify-between shrink-0">
+                    <div>
+                      <h2 className="text-[18px] font-bold text-dash-text tracking-tight">Screen Time</h2>
+                      <p className="text-[13px] text-dash-text-faded mt-1">Track daily browsing habits and time spent on websites.</p>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
+                    {/* Total Time Card */}
+                    <div className="bg-dash-card rounded-2xl p-6 border border-dash-border flex flex-col justify-center items-center text-center">
+                      <p className="text-[11px] font-bold text-dash-text-muted uppercase tracking-wider mb-2">Total Time Today</p>
+                      <h3 className="text-4xl font-extrabold text-dash-text tracking-tight">
+                        {screenTimeData ? (
+                          <>
+                            {Math.floor(screenTimeData.totalTimeMs / 3600000)}<span className="text-xl text-dash-text-muted font-bold mx-1">h</span>
+                            {Math.floor((screenTimeData.totalTimeMs % 3600000) / 60000)}<span className="text-xl text-dash-text-muted font-bold ml-1">m</span>
+                          </>
+                        ) : '0h 0m'}
+                      </h3>
+                    </div>
+                    
+                    {/* Website Breakdown */}
+                    <div className="md:col-span-2 bg-dash-card rounded-2xl p-6 border border-dash-border min-h-[300px]">
+                        <h3 className="text-[14px] font-bold text-dash-text mb-4">Website Breakdown</h3>
+                        {!screenTimeData || Object.keys(screenTimeData.domains).length === 0 ? (
+                          <div className="flex items-center justify-center h-48 text-[13px] text-dash-text-faded">No screen time logged today.</div>
+                        ) : (
+                          <div className="space-y-5">
+                            {Object.entries(screenTimeData.domains)
+                              .sort(([, a], [, b]) => b - a)
+                              .map(([domain, timeMs]) => {
+                                const pct = Math.round((timeMs / screenTimeData.totalTimeMs) * 100);
+                                const mins = Math.floor(timeMs / 60000);
+                                const hrs = Math.floor(mins / 60);
+                                const displayTime = hrs > 0 ? `${hrs}h ${mins % 60}m` : `${mins}m`;
+                                
+                                return (
+                                  <div key={domain} className="space-y-2">
+                                    <div className="flex justify-between items-end">
+                                      <div className="flex items-center gap-2">
+                                          <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`} className="w-5 h-5 rounded" alt="" />
+                                          <span className="text-[13px] font-medium text-dash-text">{domain}</span>
+                                      </div>
+                                      <span className="text-[12px] font-bold text-dash-text-muted">{displayTime}</span>
+                                    </div>
+                                    <div className="w-full h-2 bg-dash-sidebar rounded-full overflow-hidden">
+                                      <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${pct}%` }}></div>
+                                    </div>
+                                  </div>
+                                );
+                            })}
+                          </div>
+                        )}
+                    </div>
+                  </div>
                 </div>
               )}
               

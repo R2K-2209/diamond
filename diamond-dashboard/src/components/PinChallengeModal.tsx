@@ -70,7 +70,9 @@ export default function PinChallengeModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <input
-              type="password"
+              type="text"
+              style={{ WebkitTextSecurity: "disc" } as any}
+              autoComplete="off"
               inputMode="numeric"
               maxLength={4}
               value={pin}

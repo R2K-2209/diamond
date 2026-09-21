@@ -1,14 +1,54 @@
 {
-  "name": "diamond-browser",
+  "name": "knight-browser",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "main": "dist-electron/main.js",
+  "author": "Knight Team",
+  "description": "Knight — Child-Safe Web Browser with 5-Layer Protection",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:win": "npm run build && electron-builder --win --config",
     "lint": "oxlint",
     "preview": "vite preview"
+  },
+  "build": {
+    "appId": "com.knight.browser",
+    "productName": "Knight",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "public",
+        "to": "public",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "public/logo.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "public/logo.ico",
+      "uninstallerIcon": "public/logo.ico",
+      "installerHeaderIcon": "public/logo.ico",
+      "shortcutName": "Knight"
+    }
   },
   "dependencies": {
     "@ghostery/adblocker-electron": "^2.18.2",

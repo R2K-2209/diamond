@@ -1,4 +1,4 @@
-import React from 'react';
+// Settings component
 
 export function SettingsPage() {
   return (
