@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 
 export interface ContentPolicy {
+  isLinked: boolean;
   customBlockedDomains: string[];
   customAllowedDomains: string[];
   blockAdultContent: boolean;
@@ -18,6 +19,7 @@ export interface ContentPolicy {
 }
 
 export const DEFAULT_POLICY: ContentPolicy = {
+  isLinked: true,
   customBlockedDomains: [],
   customAllowedDomains: [],
   blockAdultContent: true,

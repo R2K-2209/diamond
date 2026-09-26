@@ -15,6 +15,9 @@ import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 // ─── Policy Types ───────────────────────────────────────────────
 
 export interface ContentPolicy {
+  // Device link state
+  isLinked: boolean;
+
   // Parent-managed block/allow lists (live-updated from dashboard)
   customBlockedDomains: string[];
   customAllowedDomains: any[]; // Supports old string format or { url, expiry }
@@ -46,6 +49,7 @@ export interface ContentPolicy {
 // ─── Default Policy ─────────────────────────────────────────────
 
 const DEFAULT_POLICY: ContentPolicy = {
+  isLinked: true,
   customBlockedDomains: [],
   customAllowedDomains: [],
   blockAdultContent: true,
@@ -174,6 +178,7 @@ export async function initPolicySync(userId: string = 'test-child-user'): Promis
       if (snapshot.exists()) {
         const data = snapshot.data();
         currentPolicy = {
+          isLinked: data.isLinked ?? DEFAULT_POLICY.isLinked,
           customBlockedDomains: data.customBlockedDomains ?? DEFAULT_POLICY.customBlockedDomains,
           customAllowedDomains: data.customAllowedDomains ?? DEFAULT_POLICY.customAllowedDomains,
           blockAdultContent: data.blockAdultContent ?? DEFAULT_POLICY.blockAdultContent,

@@ -260,15 +260,6 @@ function findCardParent(element: Element): Element {
       }
     }
     
-    // Generic heuristic for rows/cards based on class names
-    if (typeof current.className === 'string') {
-      const cls = current.className.toLowerCase();
-      if ((cls.includes('card') || cls.includes('track') || cls.includes('row') || cls.includes('item')) && 
-          !cls.includes('container') && !cls.includes('wrapper') && !cls.includes('list') && !cls.includes('page')) {
-        return current;
-      }
-    }
-    
     current = current.parentElement;
     steps++;
   }
@@ -569,6 +560,14 @@ function getImageKey(img: HTMLImageElement): string {
 async function classifyImage(img: HTMLImageElement): Promise<void> {
   const key = getImageKey(img);
   if (!key || key.startsWith('data:image/svg') || key.startsWith('data:image/gif;base64,R0lGOD')) return;
+  
+  // Disable ML Image Scanning on YouTube. 
+  // It causes severe false positives on video thumbnails (faces, expressions)
+  // which permanently blurs the entire video player. The text scanner handles YouTube safety.
+  if (window.location.hostname.includes('youtube.com') || window.location.hostname.includes('youtu.be')) {
+    imageCache.set(key, 'safe');
+    return;
+  }
 
   // Check cache
   const cached = imageCache.get(key);
@@ -637,11 +636,10 @@ async function classifyImage(img: HTMLImageElement): Promise<void> {
       const probability = pred.probability as number;
 
       if (
-        (className === 'Porn' && probability >= NSFW_THRESHOLDS.Porn) ||
-        (className === 'Hentai' && probability >= NSFW_THRESHOLDS.Hentai) ||
-        (className === 'Sexy' && probability >= NSFW_THRESHOLDS.Sexy) ||
-        (className === 'Porn' && probability + (predictions.find(p => p.className === 'Sexy')?.probability || 0) >= 0.5) ||
-        (className === 'Hentai' && probability + (predictions.find(p => p.className === 'Drawing')?.probability || 0) >= 0.8 && probability > 0.2)
+        (className === 'Porn' && probability >= 0.80) ||
+        (className === 'Hentai' && probability >= 0.80) ||
+        (className === 'Sexy' && probability >= 0.85) ||
+        (className === 'Porn' && probability + (predictions.find(p => p.className === 'Sexy')?.probability || 0) >= 0.85)
       ) {
         dominated = true;
         console.log(`[Diamond L5] Blocked image: ${className}=${(probability * 100).toFixed(1)}% | ${key.substring(0, 80)}`);
@@ -670,6 +668,7 @@ async function classifyImage(img: HTMLImageElement): Promise<void> {
         let hiddenCard = false;
         const card = findCardParent(img);
         if (card && card !== img) {
+          const isYouTube = window.location.hostname.includes('youtube.com') || window.location.hostname.includes('youtu.be');
           if (isYouTube) {
             card.classList.add(DIAMOND_CSS.hiddenElement);
             hiddenCard = true;

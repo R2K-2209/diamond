@@ -489,7 +489,13 @@ export default function Dashboard() {
 
       const writePromise = Promise.all([
         setDoc(doc(db, `parents/${user.uid}/children`, pairingChildId), { devicePaired: true }, { merge: true }),
-        setDoc(codeRef, { status: "paired", childId: pairingChildId, parentId: user.uid }, { merge: true })
+        setDoc(codeRef, { status: "paired", childId: pairingChildId, parentId: user.uid }, { merge: true }),
+        // Also reset the policy to ensure the browser knows it's linked again
+        fetch('/api/policy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ childId: pairingChildId, isLinked: true })
+        })
       ]);
 
       await Promise.race([writePromise, timeoutPromise]);
@@ -871,11 +877,12 @@ export default function Dashboard() {
               );
               
               // Check if content was blurred on this page (within 10 mins of log)
-              const hasBlurredContent = alerts.some(a => 
-                (a.type === 'ALLOWED_SITE_FLAG' || a.type === 'CONTENT_FLAGGED_SILENT') && 
-                a.url.includes(domain) &&
-                Math.abs((a.timestamp?.seconds || 0) - (log.timestamp?.seconds || 0)) < 600
-              );
+              const hasBlurredContent = alerts.some(a => {
+                if ((a.type !== 'ALLOWED_SITE_FLAG' && a.type !== 'CONTENT_FLAGGED_SILENT') || !a.url.includes(domain)) return false;
+                const aTime = a.timestamp?.seconds || (Date.now() / 1000);
+                const lTime = log.timestamp?.seconds || (Date.now() / 1000);
+                return Math.abs(aTime - lTime) < 600;
+              });
               
               const rowColor = (isLive || hasBlurredContent) ? 'bg-yellow-500/5 hover:bg-yellow-500/10' : 'hover:bg-dash-card-hover';
               
@@ -893,7 +900,7 @@ export default function Dashboard() {
                         LIVE
                       </span>
                     )}
-                    {!isLive && hasBlurredContent && (
+                    {hasBlurredContent && (
                       <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-warning/20 text-warning border border-warning/30 shrink-0 whitespace-nowrap" title="Harmful content was hidden on this page">
                         CONTENT HIDDEN
                       </span>
@@ -1121,6 +1128,56 @@ export default function Dashboard() {
                       </div>
                     </div>
                     
+                    <div className="p-6 border-b border-dash-border">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-[14px] font-bold text-rose-500">Device Connection</h3>
+                          <p className="text-[12px] text-dash-text-faded mt-1">Disconnect the browser to revoke all access and force re-pairing.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between bg-rose-500/5 p-4 rounded-xl border border-rose-500/20">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-500">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="text-[13px] font-bold text-dash-text">Disconnect Device</p>
+                            <p className="text-[12px] text-dash-text-muted mt-0.5">Browser will be locked until re-paired with a new code</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            if (!activeChildId || !user) return;
+                            triggerAuth(async () => {
+                              try {
+                                // 1. Set isLinked=false in the policy (browser reads this)
+                                await fetch('/api/policy', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ childId: activeChildId, isLinked: false })
+                                });
+                                // 2. Mark devicePaired=false in Firestore child profile
+                                await setDoc(
+                                  doc(db, `parents/${user.uid}/children`, activeChildId),
+                                  { devicePaired: false },
+                                  { merge: true }
+                                );
+                                alert('Device disconnected. The browser is now locked and will require a fresh 6-digit pairing code to reconnect.');
+                              } catch(err) {
+                                console.error('Disconnect failed:', err);
+                                alert('Failed to disconnect device. Please try again.');
+                              }
+                            });
+                          }}
+                          className="px-4 py-2 bg-rose-500/10 text-rose-500 text-[12px] font-bold rounded-lg border border-rose-500/20 hover:bg-rose-500/20 transition-colors"
+                        >
+                          Disconnect Device
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="p-6 border-b border-dash-border">
                       <div className="flex items-center justify-between mb-4">
                         <div>

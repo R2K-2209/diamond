@@ -9,6 +9,7 @@ const DIAMOND_DIR = path.join(os.homedir(), '.diamond');
 const getPolicyFile = (childId: string) => path.join(DIAMOND_DIR, `policy_${childId}.json`);
 
 const DEFAULT_POLICY = {
+  isLinked: true,
   customBlockedDomains: [],
   customAllowedDomains: [],
   blockAdultContent: true,
@@ -98,8 +99,12 @@ export async function POST(request: Request) {
       updatedAt: new Date().toISOString(),
     };
 
-    // Save locally
+    // Save locally (child-specific file)
     fs.writeFileSync(POLICY_FILE, JSON.stringify(newPolicy, null, 2), 'utf8');
+
+    // Also write to generic policy.json (the browser's local file watcher monitors this)
+    const genericPolicyFile = path.join(DIAMOND_DIR, 'policy.json');
+    fs.writeFileSync(genericPolicyFile, JSON.stringify(newPolicy, null, 2), 'utf8');
 
     // Also attempt to push to Firestore in background
     setDoc(doc(db, 'policies', childId), {

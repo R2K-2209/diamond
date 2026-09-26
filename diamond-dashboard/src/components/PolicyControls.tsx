@@ -6,7 +6,7 @@ import { doc, onSnapshot, setDoc, serverTimestamp } from "firebase/firestore";
 
 interface ContentPolicy {
   customBlockedDomains: string[];
-  customAllowedDomains: string[];
+  customAllowedDomains: any[];
   blockAdultContent: boolean;
   blockGambling: boolean;
   blockSocialMedia: boolean;
@@ -410,14 +410,17 @@ export default function PolicyControls({ childId, triggerAuth }: { childId?: str
                   No domains explicitly allowed.
                 </p>
               ) : (
-                policy.customAllowedDomains.map((domain, index) => (
-                  <span key={`${domain}-${index}`} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-dash-card border border-dash-border-light text-[11px] font-medium text-dash-text">
-                    {domain}
-                    <button onClick={() => removeAllowedDomain(domain)} className="text-dash-text-faded hover:text-emerald-500 transition-colors">
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                  </span>
-                ))
+                policy.customAllowedDomains.map((domain, index) => {
+                  const domainStr = typeof domain === 'string' ? domain : domain.url;
+                  return (
+                    <span key={`${domainStr}-${index}`} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-dash-card border border-dash-border-light text-[11px] font-medium text-dash-text">
+                      {domainStr}
+                      <button onClick={() => removeAllowedDomain(domainStr)} className="text-dash-text-faded hover:text-emerald-500 transition-colors">
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </span>
+                  );
+                })
               )}
             </div>
           </div>

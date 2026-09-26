@@ -85,24 +85,7 @@ div[data-ad], div[data-adunit], aside[class*="ad"], section[class*="sponsored"] 
 `;
 
 const YOUTUBE_AD_CSS = `
-.ytp-ad-module, .ytp-ad-overlay-container, .ytp-ad-overlay-slot,
-.ytp-ad-text-overlay, .ytp-ad-skip-button-container, .ytp-ad-player-overlay,
-.ytp-ad-player-overlay-instream-info, .ytp-ad-action-interstitial,
-.video-ads, #player-ads, .ad-showing .ytp-ad-overlay-container {
-  display: none !important; height: 0 !important; opacity: 0 !important; pointer-events: none !important;
-}
-ytd-display-ad-renderer, ytd-promoted-video-renderer,
-ytd-promoted-sparkles-web-renderer, ytd-promoted-sparkles-text-search-renderer,
-ytd-ad-slot-renderer, ytd-in-feed-ad-layout-renderer,
-ytd-banner-promo-renderer, ytd-statement-banner-renderer,
-ytd-brand-video-shelf-renderer, ytd-brand-video-singleton-renderer,
-#masthead-ad, ytd-mealbar-promo-renderer, ytd-search-pyv-renderer,
-ytd-compact-promoted-video-renderer, #related ytd-ad-slot-renderer,
-ytd-merch-shelf-renderer, ytd-action-companion-ad-renderer,
-ytd-official-card-renderer, ytd-hero-playlist-thumbnail-renderer,
-#panels > ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-ads"] {
-  display: none !important; height: 0 !important; margin: 0 !important; padding: 0 !important;
-}
+/* CSS ad blocking disabled due to YouTube anti-adblock. Using Auto-Skip script instead. */
 `;
 
 const GOOGLE_AD_CSS = `
@@ -140,11 +123,7 @@ const YOUTUBE_AUTOSKIP_SCRIPT = `
       const skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button, button.ytp-ad-skip-button-modern');
       if (skipBtn) { skipBtn.click(); return; }
 
-      // Strategy 2: Fast-forward ad
-      const video = document.querySelector('video');
-      if (video && video.duration && isFinite(video.duration) && video.duration > 0) {
-        video.currentTime = video.duration;
-      }
+      // Strategy 2 (Fast-forward) removed due to YouTube player crashing.
 
       // Strategy 3: Mute during ad, unmute when ad ends
       if (video && !video.muted) {

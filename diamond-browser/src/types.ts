@@ -19,6 +19,7 @@ declare global {
       getBlockedUrl: (targetUrl: string, category?: string, reason?: string, layer?: string) => Promise<string>;
       getConfig: () => Promise<any>;
       saveConfig: (config: any) => Promise<boolean>;
+      clearConfig: () => Promise<boolean>;
       newWindow: () => void;
       closeWindow: () => void;
       getHistory: () => Promise<any[]>;

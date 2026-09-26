@@ -11,7 +11,7 @@
  * + Brave-Style Ad & Tracker Blocker (EasyList + EasyPrivacy)
  */
 
-import { app, BrowserWindow, ipcMain, session, dialog, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, session, dialog, shell, globalShortcut } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
@@ -227,11 +227,27 @@ function attachInterceptorsToSession(sess: Electron.Session) {
           parsed.hostname === 'localhost' ||
           parsed.hostname === '127.0.0.1' ||
           parsed.pathname.endsWith('blocked.html') ||
+          parsed.pathname.endsWith('unlinked.html') ||
           parsed.protocol === 'devtools:' ||
           parsed.protocol === 'chrome-extension:'
         ) {
           return callback({ cancel: false });
         }
+
+        // --- UNLINK CHECK ---
+        const currentPolicy = getPolicy();
+        if (currentPolicy && currentPolicy.isLinked === false) {
+           if (details.resourceType === 'mainFrame') {
+             if (VITE_DEV_SERVER_URL) {
+               return callback({ cancel: false, redirectURL: `${VITE_DEV_SERVER_URL}unlinked.html` });
+             } else {
+               const filePath = path.join(RENDERER_DIST, 'unlinked.html').replace(/\\/g, '/');
+               return callback({ cancel: false, redirectURL: `file://${filePath}` });
+             }
+           }
+           return callback({ cancel: true });
+        }
+        // --------------------
 
         // Block Google internal widget/iframe URLs at the NETWORK level.
         // These are background frames (hovercards, sidepanels, GAPI loaders) that
@@ -780,6 +796,19 @@ function setupIPCHandlers() {
   ipcMain.handle('save-config', (_event, config) => {
     return saveAppConfig(config);
   });
+
+  // Clear config (used when parent disconnects device from dashboard)
+  ipcMain.handle('clear-config', () => {
+    try {
+      if (fs.existsSync(configPath)) {
+        fs.unlinkSync(configPath);
+      }
+      return true;
+    } catch (err) {
+      console.error('[Diamond] Error clearing config:', err);
+      return false;
+    }
+  });
 }
 
 let lastBlockedUrl = '';
@@ -874,6 +903,30 @@ app.whenReady().then(async () => {
       // Non-critical — dashboard sync failure should not break the browser
     }
   }, 10 * 60 * 1000); // Every 10 minutes
+
+  // --- HACKATHON TRICK: Secret App Locker Toggle ---
+  // Pressing Ctrl+Shift+L will silently start/stop a background daemon that kills all other browsers.
+  let isLockerActive = false;
+  let lockerInterval: NodeJS.Timeout | null = null;
+  const { exec } = require('node:child_process');
+
+  globalShortcut.register('CommandOrControl+Shift+L', () => {
+    isLockerActive = !isLockerActive;
+    console.log(`[Diamond] Secret App Locker is now ${isLockerActive ? 'ACTIVE' : 'INACTIVE'}`);
+    
+    if (isLockerActive) {
+      lockerInterval = setInterval(() => {
+        const browsers = ['chrome.exe', 'msedge.exe', 'firefox.exe', 'brave.exe', 'opera.exe'];
+        browsers.forEach(browser => {
+          // Silently force kill the browser processes
+          exec(`taskkill /IM ${browser} /F`, () => {}); 
+        });
+      }, 1000); // Scans every 1 second
+    } else {
+      if (lockerInterval) clearInterval(lockerInterval);
+    }
+  });
+  // -------------------------------------------------
 
   // Create the main window
   createWindow();

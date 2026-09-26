@@ -145,10 +145,10 @@ export default function Sidebar({
           <h3 className="text-[10px] font-extrabold text-dash-text-faded tracking-[0.2em] uppercase mb-3 ml-2">Children</h3>
           <div className="space-y-1.5">
             {childrenProfiles.map((child) => (
-              <button
-                key={child.id}
+              <React.Fragment key={child.id}>
+              <div
                 onClick={() => onSelectChild(child.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-[14px] transition-all duration-200 border ${
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-[14px] transition-all duration-200 border cursor-pointer ${
                   activeChildId === child.id
                     ? "bg-dash-card-hover border-dash-border-light"
                     : "bg-transparent border-transparent hover:bg-dash-card-hover"
@@ -162,10 +162,52 @@ export default function Sidebar({
                     {child.name}
                   </span>
                 </div>
-                {activeChildId === child.id && (
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
-                )}
-              </button>
+                <div className="flex items-center gap-2">
+                  {activeChildId === child.id && onDeleteChild && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm(`Remove "${child.name}" profile? This cannot be undone.`)) {
+                          onDeleteChild(child.id);
+                        }
+                      }}
+                      className="w-5 h-5 rounded-md flex items-center justify-center text-rose-400/60 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+                      title="Delete child profile"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
+                  {activeChildId === child.id && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+                  )}
+                </div>
+              </div>
+              {/* Pair Device Button (Only shows for active child if not paired) */}
+              {activeChildId === child.id && !child.devicePaired && onPairDevice && (
+                <div className="px-3 mt-1.5 mb-3">
+                  <button
+                    onClick={() => onPairDevice(child.id)}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 text-white text-[12px] font-bold rounded-[10px] transition-colors shadow-lg shadow-indigo-500/20"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                    </svg>
+                    Pair Device
+                  </button>
+                </div>
+              )}
+              {/* Already Paired Indicator */}
+              {activeChildId === child.id && child.devicePaired && (
+                <div className="px-3 mt-1.5 mb-3 text-[11px] font-medium text-emerald-500 flex items-center justify-center gap-1.5">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Device is Connected
+                </div>
+              )}
+              </React.Fragment>
             ))}
 
             <button

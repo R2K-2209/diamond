@@ -63,6 +63,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Config (Pairing)
   getConfig: () => ipcRenderer.invoke('get-config'),
   saveConfig: (config: any) => ipcRenderer.invoke('save-config', config),
+  clearConfig: () => ipcRenderer.invoke('clear-config'),
 
   // Browser Menu Commands
   newWindow: (): Promise<void> => ipcRenderer.invoke('new-window'),

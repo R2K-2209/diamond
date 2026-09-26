@@ -64,6 +64,20 @@ function App() {
     loadInit();
   }, []);
 
+  // Listen for disconnect signal from Parent Dashboard via policy sync
+  useEffect(() => {
+    if (!window.electronAPI?.onPolicyChanged) return;
+    const unsub = window.electronAPI.onPolicyChanged(async (policy: any) => {
+      if (policy && policy.isLinked === false) {
+        console.log('[Diamond] Device disconnected by parent! Clearing config and resetting to Setup...');
+        await window.electronAPI?.clearConfig?.();
+        setIsPaired(false);
+        setChildId(null);
+      }
+    });
+    return unsub;
+  }, []);
+
   // Screen Time Tracking
   useScreenTimeTracker(childId, activeTabId, tabs);
   
